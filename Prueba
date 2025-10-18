@@ -1,0 +1,1323 @@
+-- JXNULL CHAT GLOBAL
+-- Cambio de stilo mismo funcionamiento
+
+-- Sistema de carpetas
+if makefolder and not isfolder("JXNULL_CONFIGS") then
+    makefolder("JXNULL_CONFIGS")
+end
+
+--  LISTA DE ADMINISTRADORES
+local ChatScripters = {
+    ["joao_modsF"] = true,
+    ["joao_mods26"] = true,
+    ["donxexman"] = true,
+    ["INFINITYH4CK"] = true
+}
+
+-- 🔧 SERVICIOS Y VARIABLES GLOBALES
+local HttpService = game:GetService("HttpService")
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+
+local player = Players.LocalPlayer
+local meteoritos = {}
+local hrpCFrame = nil
+
+-- Variables del GUI
+local gui, chatBox, frame, sendButton, textBox, settingsFrame, bgImage = nil, nil, nil, nil, nil, nil, nil
+local ultimoMensajeID = nil
+local guiActivo = false
+local ShowChatNotify = false -- DESACTIVADO POR DEFECTO
+local mensajesMostrados = {}
+local enviandoMensaje = false
+local primeraVez = true
+local escuchaActiva = false --Control del loop de escucha
+
+-- URL de Firebase
+local firebaseURL = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Chat.json"
+local request = (syn and syn.request) or http_request or (fluxus and fluxus.request) or request
+
+--  FUNCIONES DE COMANDOS ESPECIALES
+local function MeteorShowerFunction()
+    local char = player.Character
+    if not char then return end
+    
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    
+    hrpCFrame = hrp.CFrame
+    
+    task.spawn(function()
+        for i = 1, 100 do
+            local meteorito = Instance.new("Part")
+            meteorito.Name = "Meteorito_JXNULL"
+            meteorito.Color = Color3.fromRGB(0, 0, 0)
+            meteorito.Shape = Enum.PartType.Ball
+            meteorito.Anchored = false
+            meteorito.CanCollide = true
+            meteorito.Material = Enum.Material.Slate
+            
+            local tamano = math.random(200, 500)
+            meteorito.Size = Vector3.new(tamano, tamano, tamano)
+            meteorito.CFrame = hrpCFrame * CFrame.new(
+                math.random(-2000, 2000),
+                5000,
+                math.random(-2000, 2000)
+            )
+            meteorito.AssemblyLinearVelocity = Vector3.new(0, -5000, 0)
+            
+            local fire = Instance.new("Fire", meteorito)
+            fire.Size = meteorito.Size.Magnitude * 0.5
+            fire.Heat = 25
+            fire.Color = Color3.fromRGB(255, 100, 0)
+            fire.SecondaryColor = Color3.fromRGB(255, 0, 0)
+            
+            local light = Instance.new("PointLight", meteorito)
+            light.Brightness = 5
+            light.Range = 100
+            light.Color = Color3.fromRGB(255, 100, 0)
+            
+            meteorito.Parent = game.Workspace
+            table.insert(meteoritos, meteorito)
+            
+            task.wait(0.1)
+        end
+        
+        task.wait(3)
+        for _, meteorito in pairs(meteoritos) do
+            if meteorito and meteorito:IsA("BasePart") then
+                meteorito:Destroy()
+            end
+        end
+        meteoritos = {}
+    end)
+end
+
+local ComandosF = {
+    ["MeteorShower"] = MeteorShowerFunction,
+    ["meteorshower"] = MeteorShowerFunction,
+    ["meteoros"] = MeteorShowerFunction
+}
+
+-- FUNCIONES DE ANIMACIÓN
+local function AgregarEfectoHover(boton, colorNormal, colorHover)
+    boton.MouseEnter:Connect(function()
+        TweenService:Create(
+            boton,
+            TweenInfo.new(0.2, Enum.EasingStyle.Quad),
+            {BackgroundColor3 = colorHover}
+        ):Play()
+    end)
+    
+    boton.MouseLeave:Connect(function()
+        TweenService:Create(
+            boton,
+            TweenInfo.new(0.2, Enum.EasingStyle.Quad),
+            {BackgroundColor3 = colorNormal}
+        ):Play()
+    end)
+end
+
+--  SISTEMA DE CONFIGURACIÓN MEJORADO
+local function CargarConfiguracion()
+    if not isfile or not isfile("JXNULL_CONFIGS/Config.json") then
+        return {
+            Transparency = 0,
+            ImageId = "",
+            PosicionX = 0.05,
+            PosicionY = 0.3
+        }
+    end
+    
+    local contenido = readfile("JXNULL_CONFIGS/Config.json")
+    if contenido and contenido ~= "" then
+        local success, datos = pcall(function()
+            return HttpService:JSONDecode(contenido)
+        end)
+        
+        if success then
+            if datos.PosicionX then
+                datos.PosicionX = math.clamp(datos.PosicionX, -0.5, 1.5)
+            end
+            if datos.PosicionY then
+                datos.PosicionY = math.clamp(datos.PosicionY, -0.5, 1.5)
+            end
+            return datos
+        end
+    end
+    
+    return {
+        Transparency = 0,
+        ImageId = "",
+        PosicionX = 0.05,
+        PosicionY = 0.3
+    }
+end
+
+local function GuardarConfiguracion(datos)
+    if writefile then
+        if datos.PosicionX then
+            datos.PosicionX = math.clamp(datos.PosicionX, -0.5, 1.5)
+        end
+        if datos.PosicionY then
+            datos.PosicionY = math.clamp(datos.PosicionY, -0.5, 1.5)
+        end
+        
+        local json = HttpService:JSONEncode(datos)
+        writefile("JXNULL_CONFIGS/Config.json", json)
+    end
+end
+
+-- FUNCIÓN: MOSTRAR MENSAJES (OPTIMIZADO)
+local function showMessages(data)
+    if not chatBox then return end
+
+    local mensajes = {}
+    for key, value in pairs(data or {}) do
+        value._id = key
+        table.insert(mensajes, value)
+    end
+
+    table.sort(mensajes, function(a, b)
+        return (a.time or 0) < (b.time or 0)
+    end)
+
+    local estoyAlFinal = primeraVez
+    
+    if not primeraVez and chatBox.AbsoluteCanvasSize.Y > 0 then
+        local posicionActual = chatBox.CanvasPosition.Y
+        local alturaVentana = chatBox.AbsoluteWindowSize.Y
+        local alturaTotal = chatBox.AbsoluteCanvasSize.Y
+        estoyAlFinal = (posicionActual + alturaVentana) >= (alturaTotal - 20)
+    end
+
+    for index, msg in ipairs(mensajes) do
+        local messageId = msg._id
+        
+        if mensajesMostrados[messageId] then
+            continue
+        end
+        
+        mensajesMostrados[messageId] = true
+        
+        local username = tostring(msg.username or "???")
+        local text = tostring(msg.text or "")
+        
+        local tag = ""
+        local tagColor = Color3.fromRGB(200, 200, 200)
+        
+        if ChatScripters[username] then
+            tag = " 👑 OWNER"
+            tagColor = Color3.fromRGB(255, 215, 0)
+        end
+
+        local args = text:split(" ")
+        local comando = args[1]:lower()
+        
+        for cmdName, funcion in pairs(ComandosF) do
+            if comando == cmdName:lower() then
+                local targetName = args[2]
+                
+                if targetName and ChatScripters[username] then
+                    if targetName:lower() == "all" or 
+                       player.Name:lower():sub(1, #targetName) == targetName:lower() then
+                        
+                        funcion()
+                        
+                        if msg._id then
+                            task.delay(3, function()
+                                pcall(function()
+                                    request({
+                                        Url = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Chat/" .. msg._id .. ".json",
+                                        Method = "DELETE"
+                                    })
+                                end)
+                            end)
+                        end
+                    end
+                end
+            end
+        end
+
+        if text:lower():find("discord") then
+            continue
+        end
+
+        local container = Instance.new("Frame")
+        container.Name = "MessageContainer_" .. messageId
+        container.Size = UDim2.new(1, -10, 0, 70)
+        container.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+        container.BackgroundTransparency = 0.3
+        container.BorderSizePixel = 0
+        container.ZIndex = 2
+        container.Parent = chatBox
+
+        local containerCorner = Instance.new("UICorner", container)
+        containerCorner.CornerRadius = UDim.new(0, 8)
+
+        local containerStroke = Instance.new("UIStroke", container)
+        containerStroke.Color = Color3.fromRGB(50, 50, 55)
+        containerStroke.Thickness = 1
+        containerStroke.Transparency = 0.5
+
+        container.MouseEnter:Connect(function()
+            TweenService:Create(container, TweenInfo.new(0.2), {
+                BackgroundTransparency = 0.1
+            }):Play()
+            TweenService:Create(containerStroke, TweenInfo.new(0.2), {
+                Transparency = 0.2,
+                Color = Color3.fromRGB(88, 101, 242)
+            }):Play()
+        end)
+
+        container.MouseLeave:Connect(function()
+            TweenService:Create(container, TweenInfo.new(0.2), {
+                BackgroundTransparency = 0.3
+            }):Play()
+            TweenService:Create(containerStroke, TweenInfo.new(0.2), {
+                Transparency = 0.5,
+                Color = Color3.fromRGB(50, 50, 55)
+            }):Play()
+        end)
+
+        local userId = 1
+        local success, result = pcall(function()
+            return Players:GetUserIdFromNameAsync(username)
+        end)
+        if success then userId = result end
+
+        local avatarContainer = Instance.new("Frame")
+        avatarContainer.Name = "AvatarContainer"
+        avatarContainer.Size = UDim2.new(0, 50, 0, 50)
+        avatarContainer.Position = UDim2.new(0, 5, 0, 5)
+        avatarContainer.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
+        avatarContainer.ZIndex = 3
+        avatarContainer.Parent = container
+
+        local avatarCorner = Instance.new("UICorner", avatarContainer)
+        avatarCorner.CornerRadius = UDim.new(0, 25)
+
+        local avatarStroke = Instance.new("UIStroke", avatarContainer)
+        avatarStroke.Color = ChatScripters[username] and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(88, 101, 242)
+        avatarStroke.Thickness = 2
+
+        local avatar = Instance.new("ImageLabel")
+        avatar.Name = "Avatar"
+        avatar.Size = UDim2.new(1, -4, 1, -4)
+        avatar.Position = UDim2.new(0, 2, 0, 2)
+        avatar.BackgroundTransparency = 1
+        avatar.Image = "https://www.roblox.com/headshot-thumbnail/image?userId=" .. userId .. "&width=150&height=150&format=png"
+        avatar.ZIndex = 4
+        avatar.Parent = avatarContainer
+
+        local avatarImgCorner = Instance.new("UICorner", avatar)
+        avatarImgCorner.CornerRadius = UDim.new(0, 23)
+
+        local messageFrame = Instance.new("Frame")
+        messageFrame.Name = "MessageFrame"
+        messageFrame.Size = UDim2.new(1, -120, 1, -10)
+        messageFrame.Position = UDim2.new(0, 60, 0, 5)
+        messageFrame.BackgroundTransparency = 1
+        messageFrame.ZIndex = 3
+        messageFrame.Parent = container
+
+        local usernameLabel = Instance.new("TextLabel")
+        usernameLabel.Name = "Username"
+        usernameLabel.Size = UDim2.new(1, 0, 0, 20)
+        usernameLabel.Position = UDim2.new(0, 0, 0, 0)
+        usernameLabel.BackgroundTransparency = 1
+        usernameLabel.Text = username
+        usernameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        usernameLabel.Font = Enum.Font.GothamBold
+        usernameLabel.TextSize = 14
+        usernameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        usernameLabel.TextScaled = false
+        usernameLabel.ZIndex = 4
+        usernameLabel.Parent = messageFrame
+
+        if tag ~= "" then
+            local tagLabel = Instance.new("TextLabel")
+            tagLabel.Name = "Tag"
+            tagLabel.Size = UDim2.new(0, 80, 0, 18)
+            tagLabel.Position = UDim2.new(0, usernameLabel.TextBounds.X + 5, 0, 1)
+            tagLabel.BackgroundColor3 = tagColor
+            tagLabel.BackgroundTransparency = 0.7
+            tagLabel.Text = tag
+            tagLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+            tagLabel.Font = Enum.Font.GothamBold
+            tagLabel.TextSize = 10
+            tagLabel.ZIndex = 4
+            tagLabel.Parent = messageFrame
+
+            local tagCorner = Instance.new("UICorner", tagLabel)
+            tagCorner.CornerRadius = UDim.new(0, 4)
+        end
+
+        local timestamp = Instance.new("TextLabel")
+        timestamp.Name = "Timestamp"
+        timestamp.Size = UDim2.new(0, 100, 0, 15)
+        timestamp.Position = UDim2.new(0, 0, 0, 20)
+        timestamp.BackgroundTransparency = 1
+        timestamp.Text = os.date("%H:%M:%S", msg.time or os.time())
+        timestamp.TextColor3 = Color3.fromRGB(150, 150, 150)
+        timestamp.Font = Enum.Font.Gotham
+        timestamp.TextSize = 11
+        timestamp.TextXAlignment = Enum.TextXAlignment.Left
+        timestamp.ZIndex = 4
+        timestamp.Parent = messageFrame
+
+        local gameInfo = Instance.new("TextLabel")
+        gameInfo.Name = "GameInfo"
+        gameInfo.Size = UDim2.new(1, -110, 0, 15)
+        gameInfo.Position = UDim2.new(0, 110, 0, 20)
+        gameInfo.BackgroundTransparency = 1
+        gameInfo.Text = "🎮 " .. (msg.game_name and msg.game_name:sub(1, 20) or "Unknown Game")
+        gameInfo.TextColor3 = Color3.fromRGB(100, 180, 255)
+        gameInfo.Font = Enum.Font.GothamMedium
+        gameInfo.TextSize = 10
+        gameInfo.TextXAlignment = Enum.TextXAlignment.Left
+        gameInfo.TextTruncate = Enum.TextTruncate.AtEnd
+        gameInfo.ZIndex = 4
+        gameInfo.Parent = messageFrame
+
+        if msg.game_name and #msg.game_name > 20 then
+            local tooltip = Instance.new("TextLabel")
+            tooltip.Name = "Tooltip"
+            tooltip.Size = UDim2.new(0, 200, 0, 30)
+            tooltip.Position = UDim2.new(0, 110, 0, -35)
+            tooltip.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+            tooltip.BackgroundTransparency = 0.1
+            tooltip.Text = "  " .. msg.game_name .. "  "
+            tooltip.TextColor3 = Color3.fromRGB(255, 255, 255)
+            tooltip.Font = Enum.Font.Gotham
+            tooltip.TextSize = 11
+            tooltip.TextWrapped = true
+            tooltip.Visible = false
+            tooltip.ZIndex = 15
+            tooltip.Parent = messageFrame
+
+            local tooltipCorner = Instance.new("UICorner", tooltip)
+            tooltipCorner.CornerRadius = UDim.new(0, 6)
+
+            local tooltipStroke = Instance.new("UIStroke", tooltip)
+            tooltipStroke.Color = Color3.fromRGB(100, 180, 255)
+            tooltipStroke.Thickness = 1
+
+            gameInfo.MouseEnter:Connect(function()
+                tooltip.Visible = true
+            end)
+
+            gameInfo.MouseLeave:Connect(function()
+                tooltip.Visible = false
+            end)
+        end
+
+        local messageText = Instance.new("TextLabel")
+        messageText.Name = "MessageText"
+        messageText.Size = UDim2.new(1, -5, 0, 30)
+        messageText.Position = UDim2.new(0, 0, 0, 35)
+        messageText.BackgroundTransparency = 1
+        messageText.Text = text
+        messageText.TextColor3 = Color3.fromRGB(230, 230, 230)
+        messageText.Font = Enum.Font.Gotham
+        messageText.TextSize = 13
+        messageText.TextXAlignment = Enum.TextXAlignment.Left
+        messageText.TextYAlignment = Enum.TextYAlignment.Top
+        messageText.TextWrapped = true
+        messageText.TextTruncate = Enum.TextTruncate.None
+        messageText.ZIndex = 4
+        messageText.Parent = messageFrame
+
+        local copyBtn = Instance.new("TextButton")
+        copyBtn.Name = "CopyButton"
+        copyBtn.Size = UDim2.new(0, 45, 0, 45)
+        copyBtn.Position = UDim2.new(1, -50, 0, 7)
+        copyBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+        copyBtn.BackgroundTransparency = 0.5
+        copyBtn.Text = "📋"
+        copyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        copyBtn.Font = Enum.Font.GothamBold
+        copyBtn.TextSize = 20
+        copyBtn.BorderSizePixel = 0
+        copyBtn.ZIndex = 5
+        copyBtn.Parent = container
+
+        local copyCorner = Instance.new("UICorner", copyBtn)
+        copyCorner.CornerRadius = UDim.new(0, 8)
+
+        copyBtn.MouseEnter:Connect(function()
+            TweenService:Create(copyBtn, TweenInfo.new(0.2), {
+                BackgroundColor3 = Color3.fromRGB(70, 70, 80),
+                BackgroundTransparency = 0.2
+            }):Play()
+        end)
+
+        copyBtn.MouseLeave:Connect(function()
+            TweenService:Create(copyBtn, TweenInfo.new(0.2), {
+                BackgroundColor3 = Color3.fromRGB(50, 50, 60),
+                BackgroundTransparency = 0.5
+            }):Play()
+        end)
+
+        local fullText = username .. tag .. ": " .. text
+        
+        copyBtn.MouseButton1Click:Connect(function()
+            if setclipboard then 
+                setclipboard(fullText)
+                copyBtn.Text = "✅"
+                copyBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
+                task.wait(1)
+                copyBtn.Text = "📋"
+                copyBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+            end
+        end)
+
+        container.Size = UDim2.new(1, -10, 0, 0)
+        container.BackgroundTransparency = 1
+        
+        TweenService:Create(container, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = UDim2.new(1, -10, 0, 70),
+            BackgroundTransparency = 0.3
+        }):Play()
+    end
+
+    task.wait(0.05)
+    if estoyAlFinal and chatBox then
+        chatBox.CanvasPosition = Vector2.new(0, chatBox.AbsoluteCanvasSize.Y)
+        
+        if primeraVez then
+            primeraVez = false
+        end
+    end
+end
+
+-- FUNCIÓN PRINCIPAL: CREAR GUI
+function crearChatGUI()
+    if gui then 
+        gui:Destroy() 
+    end
+
+    primeraVez = true
+
+    local config = CargarConfiguracion()
+
+    gui = Instance.new("ScreenGui")
+    gui.Name = "JXNullChat_V2"
+    gui.ResetOnSpawn = false
+    gui.IgnoreGuiInset = true
+    gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    gui.Parent = CoreGui
+
+    local viewport = workspace.CurrentCamera.ViewportSize
+    local posX = (config.PosicionX or 0.05) * viewport.X
+    local posY = (config.PosicionY or 0.3) * viewport.Y
+
+    frame = Instance.new("Frame")
+    frame.Name = "MainFrame"
+    frame.Size = UDim2.new(0, 450, 0, 380)
+    frame.Position = UDim2.new(0, posX, 0, posY)
+    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    frame.BorderSizePixel = 0
+    frame.ClipsDescendants = false
+    frame.ZIndex = 1
+    frame.Parent = gui
+
+    local screenSize = workspace.CurrentCamera.ViewportSize
+    if screenSize.X < 600 then
+        frame.Size = UDim2.new(0, math.min(screenSize.X * 0.9, 450), 0, 350)
+        local mobileX = math.clamp(posX, 0, screenSize.X * 0.9)
+        local mobileY = math.clamp(posY, 0, screenSize.Y * 0.7)
+        frame.Position = UDim2.new(0, mobileX, 0, mobileY)
+    end
+
+    local corner = Instance.new("UICorner", frame)
+    corner.CornerRadius = UDim.new(0, 12)
+
+    local shadow = Instance.new("ImageLabel")
+    shadow.Name = "Shadow"
+    shadow.Size = UDim2.new(1, 30, 1, 30)
+    shadow.Position = UDim2.new(0, -15, 0, -15)
+    shadow.BackgroundTransparency = 1
+    shadow.Image = "rbxassetid://5554236805"
+    shadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    shadow.ImageTransparency = 0.5
+    shadow.ScaleType = Enum.ScaleType.Slice
+    shadow.SliceCenter = Rect.new(23, 23, 277, 277)
+    shadow.ZIndex = 0
+    shadow.Parent = frame
+
+    bgImage = Instance.new("ImageLabel")
+    bgImage.Name = "BackgroundImage"
+    bgImage.Size = UDim2.new(1, 0, 1, 0)
+    bgImage.Position = UDim2.new(0, 0, 0, 0)
+    bgImage.ImageTransparency = 0.85
+    bgImage.BackgroundTransparency = 1
+    bgImage.Image = config.ImageId or ""
+    bgImage.ScaleType = Enum.ScaleType.Crop
+    bgImage.ZIndex = 1
+    bgImage.Parent = frame
+
+    frame.BackgroundTransparency = config.Transparency or 0
+
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, 40)
+    titleBar.Position = UDim2.new(0, 0, 0, -40)
+    titleBar.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    titleBar.BorderSizePixel = 0
+    titleBar.ZIndex = 10
+    titleBar.Parent = frame
+
+    local titleCorner = Instance.new("UICorner", titleBar)
+    titleCorner.CornerRadius = UDim.new(0, 12)
+
+    local title = Instance.new("TextLabel")
+    title.Name = "Title"
+    title.Size = UDim2.new(0, 200, 1, 0)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "⚡ JXNULL CHAT"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.TextSize = 18
+    title.Font = Enum.Font.GothamBold
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.TextYAlignment = Enum.TextYAlignment.Center
+    title.ZIndex = 11
+    title.Parent = titleBar
+
+    local titleGradient = Instance.new("UIGradient", title)
+    titleGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 170, 255)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(138, 43, 226)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 127))
+    }
+    titleGradient.Rotation = 45
+
+    task.spawn(function()
+        while titleBar and titleBar.Parent do
+            for i = 0, 360, 2 do
+                if titleGradient and titleGradient.Parent then
+                    titleGradient.Rotation = i
+                end
+                task.wait(0.03)
+            end
+        end
+    end)
+
+    local settingsBtn = Instance.new("TextButton")
+    settingsBtn.Name = "SettingsButton"
+    settingsBtn.Size = UDim2.new(0, 32, 0, 32)
+    settingsBtn.Position = UDim2.new(1, -38, 0.5, -16)
+    settingsBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    settingsBtn.Text = "⚙️"
+    settingsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    settingsBtn.Font = Enum.Font.GothamBold
+    settingsBtn.TextSize = 18
+    settingsBtn.BorderSizePixel = 0
+    settingsBtn.ZIndex = 12
+    settingsBtn.Parent = titleBar
+
+    local settingsCorner = Instance.new("UICorner", settingsBtn)
+    settingsCorner.CornerRadius = UDim.new(0, 6)
+
+    AgregarEfectoHover(
+        settingsBtn, 
+        Color3.fromRGB(50, 50, 60), 
+        Color3.fromRGB(70, 70, 80)
+    )
+
+    if ChatScripters[player.Name] then
+        local deleteBtn = Instance.new("TextButton")
+        deleteBtn.Name = "DeleteButton"
+        deleteBtn.Size = UDim2.new(0, 32, 0, 32)
+        deleteBtn.Position = UDim2.new(1, -75, 0.5, -16)
+        deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+        deleteBtn.Text = "🗑️"
+        deleteBtn.TextColor3 = Color3.new(1, 1, 1)
+        deleteBtn.Font = Enum.Font.GothamBold
+        deleteBtn.TextSize = 18
+        deleteBtn.ZIndex = 12
+        deleteBtn.Parent = titleBar
+
+        local deleteCorner = Instance.new("UICorner", deleteBtn)
+        deleteCorner.CornerRadius = UDim.new(0, 6)
+
+        AgregarEfectoHover(deleteBtn, Color3.fromRGB(220, 53, 69), Color3.fromRGB(255, 70, 85))
+
+        deleteBtn.MouseButton1Click:Connect(function()
+            local originalSize = deleteBtn.Size
+            TweenService:Create(deleteBtn, TweenInfo.new(0.1), {Size = UDim2.new(0, 28, 0, 28)}):Play()
+            task.wait(0.1)
+            TweenService:Create(deleteBtn, TweenInfo.new(0.1), {Size = originalSize}):Play()
+
+            task.spawn(function()
+                local success, response = pcall(function()
+                    return request({
+                        Url = firebaseURL,
+                        Method = "DELETE",
+                        Headers = { ["Content-Type"] = "application/json" }
+                    })
+                end)
+                
+                if success and response then
+                    mensajesMostrados = {}
+                    ultimoMensajeID = nil
+                    
+                    if chatBox then
+                        for _, child in ipairs(chatBox:GetChildren()) do
+                            if child:IsA("Frame") and child.Name:find("MessageContainer") then
+                                child:Destroy()
+                            end
+                        end
+                    end
+                    
+                    print("✅ Chat limpiado correctamente")
+                    
+                    deleteBtn.Text = "✅"
+                    deleteBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
+                    task.wait(1.5)
+                    deleteBtn.Text = "🗑️"
+                    deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+                else
+                    warn("❌ Error al limpiar Firebase")
+                    deleteBtn.Text = "❌"
+                    task.wait(1)
+                    deleteBtn.Text = "🗑️"
+                end
+            end)
+        end)
+    end
+
+    local discordBtn = Instance.new("ImageButton")
+    discordBtn.Name = "DiscordButton1"
+    discordBtn.Size = UDim2.new(0, 32, 0, 32)
+    discordBtn.Position = UDim2.new(0, 220, 0.5, -16)
+    discordBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+    discordBtn.BackgroundTransparency = 0.3
+    discordBtn.Image = "rbxassetid://76181608348088"
+    discordBtn.ImageColor3 = Color3.fromRGB(255, 255, 255)
+    discordBtn.ZIndex = 12
+    discordBtn.Parent = titleBar
+
+    local discordCorner1 = Instance.new("UICorner", discordBtn)
+    discordCorner1.CornerRadius = UDim.new(0, 6)
+
+    discordBtn.MouseButton1Click:Connect(function()
+        if syn and syn.openurl then
+            syn.openurl("https://discord.gg/jtSvZ3bhHj")
+        elseif setclipboard then
+            setclipboard("https://discord.gg/jtSvZ3bhHj")
+        end
+    end)
+
+    local discordBtn2 = Instance.new("ImageButton")
+    discordBtn2.Name = "DiscordButton2"
+    discordBtn2.Size = UDim2.new(0, 32, 0, 32)
+    discordBtn2.Position = UDim2.new(0, 260, 0.5, -16)
+    discordBtn2.BackgroundColor3 = Color3.fromRGB(114, 137, 218)
+    discordBtn2.BackgroundTransparency = 0.3
+    discordBtn2.Image = "rbxassetid://82574844253944"
+    discordBtn2.ZIndex = 12
+    discordBtn2.Parent = titleBar
+
+    local discordCorner2 = Instance.new("UICorner", discordBtn2)
+    discordCorner2.CornerRadius = UDim.new(0, 6)
+
+    discordBtn2.MouseButton1Click:Connect(function()
+        if syn and syn.openurl then
+            syn.openurl("https://discord.gg/GNMhczhJ")
+        elseif setclipboard then
+            setclipboard("NullModz_Discord: https://discord.gg/GNMhczhJ")
+        end
+    end)
+
+    -- SISTEMA DE ARRASTRE
+    local dragging = false
+    local dragInput, dragStart, startPos
+
+    local function updateInput(input)
+        if dragging and input == dragInput and frame and frame.Parent then
+            local delta = input.Position - dragStart
+            
+            local viewport = workspace.CurrentCamera.ViewportSize
+            local newX = startPos.X.Offset + delta.X
+            local newY = startPos.Y.Offset + delta.Y
+            
+            local halfWidth = frame.AbsoluteSize.X * 0.5
+            local halfHeight = frame.AbsoluteSize.Y * 0.5
+            
+            newX = math.clamp(newX, -halfWidth, viewport.X - halfWidth)
+            newY = math.clamp(newY, -halfHeight, viewport.Y - halfHeight)
+            
+            frame.Position = UDim2.new(0, newX, 0, newY)
+        end
+    end
+
+    titleBar.InputBegan:Connect(function(input)
+        if not frame or not frame.Parent then return end
+        
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStart = input.Position
+            startPos = frame.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    dragging = false
+                    
+                    if frame and frame.Parent then
+                        local viewport = workspace.CurrentCamera.ViewportSize
+                        local newConfig = CargarConfiguracion()
+                        
+                        newConfig.PosicionX = frame.Position.X.Offset / viewport.X
+                        newConfig.PosicionY = frame.Position.Y.Offset / viewport.Y
+                        
+                        GuardarConfiguracion(newConfig)
+                    end
+                end
+            end)
+        end
+    end)
+
+    titleBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            dragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(updateInput)
+
+    -- ÁREA DE MENSAJES
+    chatBox = Instance.new("ScrollingFrame")
+    chatBox.Name = "ChatBox"
+    chatBox.Size = UDim2.new(1, -16, 0.78, -10)
+    chatBox.Position = UDim2.new(0, 8, 0, 8)
+    chatBox.BackgroundTransparency = 1
+    chatBox.BorderSizePixel = 0
+    chatBox.ScrollBarThickness = 6
+    chatBox.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
+    chatBox.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    chatBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+    chatBox.ClipsDescendants = true
+    chatBox.ZIndex = 2
+    chatBox.Parent = frame
+
+    local chatLayout = Instance.new("UIListLayout", chatBox)
+    chatLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    chatLayout.Padding = UDim.new(0, 10)
+    chatLayout.FillDirection = Enum.FillDirection.Vertical
+
+    local chatPadding = Instance.new("UIPadding", chatBox)
+    chatPadding.PaddingLeft = UDim.new(0, 5)
+    chatPadding.PaddingRight = UDim.new(0, 5)
+    chatPadding.PaddingTop = UDim.new(0, 5)
+    chatPadding.PaddingBottom = UDim.new(0, 5)
+
+    -- 📝 CONTENEDOR DE INPUT
+    local inputContainer = Instance.new("Frame")
+    inputContainer.Name = "InputContainer"
+    inputContainer.Size = UDim2.new(1, -16, 0.12, 0)
+    inputContainer.Position = UDim2.new(0, 8, 0.68, 50)
+    inputContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    inputContainer.BorderSizePixel = 0
+    inputContainer.ZIndex = 2
+    inputContainer.Parent = frame
+
+    local inputCorner = Instance.new("UICorner", inputContainer)
+    inputCorner.CornerRadius = UDim.new(0, 8)
+
+    local inputStroke = Instance.new("UIStroke", inputContainer)
+    inputStroke.Color = Color3.fromRGB(88, 101, 242)
+    inputStroke.Thickness = 1.5
+    inputStroke.Transparency = 0.7
+
+    textBox = Instance.new("TextBox")
+    textBox.Name = "MessageInput"
+    textBox.Size = UDim2.new(0.65, -10, 1, -10)
+    textBox.Position = UDim2.new(0, 8, 0, 5)
+    textBox.BackgroundTransparency = 1
+    textBox.Text = ""
+    textBox.PlaceholderText = "💬 Escribe tu mensaje..."
+    textBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+    textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textBox.TextSize = 14
+    textBox.Font = Enum.Font.Gotham
+    textBox.TextXAlignment = Enum.TextXAlignment.Left
+    textBox.TextYAlignment = Enum.TextYAlignment.Center
+    textBox.ClearTextOnFocus = false
+    textBox.MultiLine = false
+    textBox.TextWrapped = true
+    textBox.TextScaled = false
+    textBox.ZIndex = 3
+    textBox.Parent = inputContainer
+
+    textBox.Focused:Connect(function()
+        TweenService:Create(inputStroke, TweenInfo.new(0.2), {
+            Transparency = 0.3,
+            Thickness = 2
+        }):Play()
+    end)
+
+    textBox.FocusLost:Connect(function()
+        TweenService:Create(inputStroke, TweenInfo.new(0.2), {
+            Transparency = 0.7,
+            Thickness = 1.5
+        }):Play()
+    end)
+
+    sendButton = Instance.new("TextButton")
+    sendButton.Name = "SendButton"
+    sendButton.Size = UDim2.new(0.33, -8, 1, -10)
+    sendButton.Position = UDim2.new(0.67, 0, 0, 5)
+    sendButton.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+    sendButton.Text = "📨 ENVIAR"
+    sendButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    sendButton.Font = Enum.Font.GothamBold
+    sendButton.TextSize = 13
+    sendButton.BorderSizePixel = 0
+    sendButton.ZIndex = 3
+    sendButton.Parent = inputContainer
+
+    local sendCorner = Instance.new("UICorner", sendButton)
+    sendCorner.CornerRadius = UDim.new(0, 6)
+
+    local sendGradient = Instance.new("UIGradient", sendButton)
+    sendGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(88, 101, 242)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(138, 43, 226))
+    }
+    sendGradient.Rotation = 45
+
+    AgregarEfectoHover(
+        sendButton, 
+        Color3.fromRGB(88, 101, 242), 
+        Color3.fromRGB(108, 121, 255)
+    )
+
+    local function EnviarMensaje()
+        if enviandoMensaje then
+            sendButton.Text = "⏳ ESPERA"
+            return
+        end
+        
+        local texto = textBox.Text:gsub("^%s*(.-)%s*$", "%1")
+        
+        if texto ~= "" and #texto <= 200 then
+            enviandoMensaje = true
+            sendButton.Text = "⏳"
+            
+            local originalSize = sendButton.Size
+            TweenService:Create(sendButton, TweenInfo.new(0.1), {
+                Size = UDim2.new(originalSize.X.Scale - 0.02, 0, originalSize.Y.Scale, 0)
+            }):Play()
+            task.wait(0.1)
+            TweenService:Create(sendButton, TweenInfo.new(0.1), {
+                Size = originalSize
+            }):Play()
+
+            local data = {
+                username = player.Name,
+                text = texto,
+                time = os.time(),
+                game_name = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name or "Unknown",
+                place_id = game.PlaceId
+            }
+            local json = HttpService:JSONEncode(data)
+            
+            local success = pcall(function()
+                request({
+                    Url = firebaseURL,
+                    Method = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body = json
+                })
+            end)
+            
+            if success then
+                textBox.Text = ""
+                sendButton.Text = "✅"
+                task.wait(0.5)
+            else
+                sendButton.Text = "❌"
+                task.wait(1)
+            end
+            
+            sendButton.Text = "📨 ENVIAR"
+            
+            task.wait(1)
+            enviandoMensaje = false
+            
+        elseif #texto > 200 then
+            textBox.PlaceholderText = "❌ Muy largo (máx 200)"
+            textBox.PlaceholderColor3 = Color3.fromRGB(255, 80, 80)
+            task.wait(2)
+            textBox.PlaceholderText = "💬 Escribe tu mensaje..."
+            textBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+        end
+    end
+
+    sendButton.MouseButton1Click:Connect(EnviarMensaje)
+    
+    textBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            EnviarMensaje()
+        end
+    end)
+
+    -- 🎛️ PANEL DE CONFIGURACIÓN
+    settingsFrame = Instance.new("Frame")
+    settingsFrame.Name = "SettingsPanel"
+    settingsFrame.Size = UDim2.new(0, 240, 0, 220)
+    settingsFrame.Position = UDim2.new(0.5, -120, 0.5, -110)
+    settingsFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    settingsFrame.BorderSizePixel = 0
+    settingsFrame.Visible = false
+    settingsFrame.ZIndex = 20
+    settingsFrame.Parent = gui
+
+    local settingsFrameCorner = Instance.new("UICorner", settingsFrame)
+    settingsFrameCorner.CornerRadius = UDim.new(0, 12)
+
+    local settingsBorder = Instance.new("UIStroke", settingsFrame)
+    settingsBorder.Color = Color3.fromRGB(88, 101, 242)
+    settingsBorder.Thickness = 2
+
+    local settingsTitle = Instance.new("TextLabel")
+    settingsTitle.Name = "PanelTitle"
+    settingsTitle.Size = UDim2.new(1, 0, 0, 35)
+    settingsTitle.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    settingsTitle.Text = "⚙️ CONFIGURACIÓN"
+    settingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+    settingsTitle.Font = Enum.Font.GothamBold
+    settingsTitle.TextSize = 14
+    settingsTitle.ZIndex = 21
+    settingsTitle.Parent = settingsFrame
+
+    local settingsTitleCorner = Instance.new("UICorner", settingsTitle)
+    settingsTitleCorner.CornerRadius = UDim.new(0, 12)
+
+    local transparencyLabel = Instance.new("TextLabel")
+    transparencyLabel.Size = UDim2.new(1, -20, 0, 20)
+    transparencyLabel.Position = UDim2.new(0, 10, 0, 45)
+    transparencyLabel.BackgroundTransparency = 1
+    transparencyLabel.Text = "Transparencia (0-1):"
+    transparencyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    transparencyLabel.Font = Enum.Font.Gotham
+    transparencyLabel.TextSize = 12
+    transparencyLabel.TextXAlignment = Enum.TextXAlignment.Left
+    transparencyLabel.ZIndex = 21
+    transparencyLabel.Parent = settingsFrame
+
+    local transparencyInput = Instance.new("TextBox")
+    transparencyInput.Name = "TransparencyInput"
+    transparencyInput.Size = UDim2.new(1, -20, 0, 32)
+    transparencyInput.Position = UDim2.new(0, 10, 0, 68)
+    transparencyInput.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    transparencyInput.PlaceholderText = "0.5"
+    transparencyInput.Text = tostring(config.Transparency or 0)
+    transparencyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    transparencyInput.Font = Enum.Font.Gotham
+    transparencyInput.TextSize = 13
+    transparencyInput.ZIndex = 21
+    transparencyInput.Parent = settingsFrame
+
+    local transCorner = Instance.new("UICorner", transparencyInput)
+    transCorner.CornerRadius = UDim.new(0, 6)
+
+    local imageLabel = Instance.new("TextLabel")
+    imageLabel.Size = UDim2.new(1, -20, 0, 20)
+    imageLabel.Position = UDim2.new(0, 10, 0, 108)
+    imageLabel.BackgroundTransparency = 1
+    imageLabel.Text = "ID de Imagen:"
+    imageLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    imageLabel.Font = Enum.Font.Gotham
+    imageLabel.TextSize = 12
+    imageLabel.TextXAlignment = Enum.TextXAlignment.Left
+    imageLabel.ZIndex = 21
+    imageLabel.Parent = settingsFrame
+
+    local imageInput = Instance.new("TextBox")
+    imageInput.Name = "ImageInput"
+    imageInput.Size = UDim2.new(1, -20, 0, 32)
+    imageInput.Position = UDim2.new(0, 10, 0, 131)
+    imageInput.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    imageInput.PlaceholderText = "rbxassetid://123456"
+    imageInput.Text = config.ImageId or ""
+    imageInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    imageInput.Font = Enum.Font.Gotham
+    imageInput.TextSize = 13
+    imageInput.ZIndex = 21
+    imageInput.Parent = settingsFrame
+
+    local imageCorner = Instance.new("UICorner", imageInput)
+    imageCorner.CornerRadius = UDim.new(0, 6)
+
+    local applyBtn = Instance.new("TextButton")
+    applyBtn.Name = "ApplyButton"
+    applyBtn.Size = UDim2.new(1, -20, 0, 35)
+    applyBtn.Position = UDim2.new(0, 10, 1, -45)
+    applyBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
+    applyBtn.Text = "✅ APLICAR"
+    applyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    applyBtn.Font = Enum.Font.GothamBold
+    applyBtn.TextSize = 14
+    applyBtn.ZIndex = 21
+    applyBtn.Parent = settingsFrame
+
+    local applyCorner = Instance.new("UICorner", applyBtn)
+    applyCorner.CornerRadius = UDim.new(0, 6)
+
+    AgregarEfectoHover(
+        applyBtn, 
+        Color3.fromRGB(67, 181, 129), 
+        Color3.fromRGB(87, 201, 149)
+    )
+
+    applyBtn.MouseButton1Click:Connect(function()
+        local t = tonumber(transparencyInput.Text)
+        if t then 
+            frame.BackgroundTransparency = math.clamp(t, 0, 1) 
+        end
+        
+        local imageText = imageInput.Text
+        local id = imageText:match("%d+")
+        if id then 
+            bgImage.Image = "rbxassetid://" .. id
+            bgImage.ImageTransparency = 0.85
+        end
+
+        local newConfig = {
+            Transparency = t or 0,
+            ImageId = id and ("rbxassetid://" .. id) or "",
+            PosicionX = frame.Position.X.Scale,
+            PosicionY = frame.Position.Y.Scale
+        }
+        GuardarConfiguracion(newConfig)
+
+        applyBtn.Text = "✔️ GUARDADO"
+        task.wait(1)
+        applyBtn.Text = "✅ APLICAR"
+    end)
+
+    settingsBtn.MouseButton1Click:Connect(function()
+        settingsFrame.Visible = not settingsFrame.Visible
+        
+        if settingsFrame.Visible then
+            settingsFrame.Size = UDim2.new(0, 0, 0, 0)
+            TweenService:Create(settingsFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+                Size = UDim2.new(0, 240, 0, 220)
+            }):Play()
+        end
+    end)
+
+    --  CARGAR MENSAJES INMEDIATAMENTE AL ABRIR
+    task.spawn(function()
+        local success, response = pcall(function()
+            return request({
+                Url = firebaseURL,
+                Method = "GET"
+            })
+        end)
+        
+        if success and response and response.Body then
+            local ok, decoded = pcall(function()
+                return HttpService:JSONDecode(response.Body)
+            end)
+            
+            if ok and typeof(decoded) == "table" then
+                showMessages(decoded)
+            end
+        end
+    end)
+end
+
+-- SISTEMA DE ESCUCHA EN TIEMPO REAL (INDEPENDIENTE Y OPTIMIZADO)
+task.spawn(function()
+    while true do
+        --  SIEMPRE ESCUCHA (sin importar si el GUI está activo)
+        if not escuchaActiva then
+            task.wait(2)
+            continue
+        end
+
+        local success, response = pcall(function()
+            return request({ 
+                Url = firebaseURL, 
+                Method = "GET" 
+            })
+        end)
+
+        if success and response and response.Body then
+            local ok, decoded = pcall(function()
+                return HttpService:JSONDecode(response.Body)
+            end)
+
+            if ok and typeof(decoded) == "table" then
+                local mensajes = {}
+                
+                for key, value in pairs(decoded) do
+                    value._id = key
+                    table.insert(mensajes, value)
+                end
+
+                table.sort(mensajes, function(a, b)
+                    return (a.time or 0) < (b.time or 0)
+                end)
+
+                -- Limitar mensajes antiguos
+                if #mensajes >= 30 then
+                    for i = 1, #mensajes - 29 do
+                        local mensaj = mensajes[i]
+                        if mensaj._id then
+                            pcall(function()
+                                request({
+                                    Url = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Chat/" .. mensaj._id .. ".json",
+                                    Method = "DELETE"
+                                })
+                            end)
+                        end
+                    end
+                end
+
+                --  NOTIFICACIONES (INDEPENDIENTES DEL TOGGLE DE CHAT)
+                if ShowChatNotify and #mensajes > 0 then
+                    local ultimo = mensajes[#mensajes]
+                    
+                    if ultimoMensajeID and ultimo._id ~= ultimoMensajeID then
+                        if _G.Rayfield and _G.Rayfield.Notify then
+                            _G.Rayfield:Notify({
+                                Title = "💬 Nuevo Mensaje",
+                                Content = (ultimo.username or "???") .. ": " .. (ultimo.text or ""),
+                                Duration = 3,
+                                Image = 4483362458
+                            })
+                        end
+                    end
+                    
+                    ultimoMensajeID = ultimo._id
+                end
+
+                --  SOLO MUESTRA MENSAJES SI EL GUI ESTÁ ACTIVO
+                if guiActivo then
+                    showMessages(decoded)
+                end
+            end
+        end
+
+        task.wait(2.5)
+    end
+end)
+
+-- 🎮 SISTEMA DE TOGGLES (OPTIMIZADO Y NO BLOQUEANTE)
+task.spawn(function()
+    --  ESPERAR A QUE _G.MainTab ESTÉ DISPONIBLE (SIN BLOQUEAR)
+    local intentos = 0
+    while not _G.MainTab and intentos < 50 do
+        task.wait(0.1)
+        intentos = intentos + 1
+    end
+
+    if _G.MainTab and _G.MainTab.CreateToggle then
+        --  TOGGLE DE NOTIFICACIONES (DESACTIVADO POR DEFECTO)
+        _G.MainTab:CreateToggle({
+            Name = "Notificaciones de Chat",
+            CurrentValue = false, --  DESACTIVADO POR DEFECTO
+            Flag = "ChatNotifications",
+            Callback = function(state)
+                ShowChatNotify = state
+                
+                --  ACTIVA LA ESCUCHA SI SE ACTIVAN NOTIFICACIONES
+                if state then
+                    escuchaActiva = true
+                else
+                    --  DESACTIVA SOLO SI EL CHAT TAMBIÉN ESTÁ INACTIVO
+                    if not guiActivo then
+                        escuchaActiva = false
+                    end
+                end
+            end
+        })
+
+        --  TOGGLE DE CHAT GLOBAL
+        _G.MainTab:CreateToggle({
+            Name = "Chat Global",
+            CurrentValue = false,
+            Flag = "GlobalChatToggle",
+            Callback = function(state)
+                if state then
+                    if guiActivo and gui and gui.Parent then
+                        warn(" Chat global ya está activo.")
+                        return
+                    end
+
+                    guiActivo = true
+                    escuchaActiva = true -- ACTIVA LA ESCUCHA
+
+                    pcall(function()
+                        local old = CoreGui:FindFirstChild("JXNullChat_V2")
+                        if old then old:Destroy() end
+                    end)
+
+                    local ok, err = pcall(crearChatGUI)
+                    if not ok then
+                        warn("❌ Error al crear GUI:", err)
+                        guiActivo = false
+                        if not ShowChatNotify then
+                            escuchaActiva = false
+                        end
+                        return
+                    end
+
+                else
+                    if not guiActivo then return end
+                    
+                    guiActivo = false
+
+                    --  DESACTIVA ESCUCHA SOLO SI NOTIFICACIONES TAMBIÉN ESTÁN OFF
+                    if not ShowChatNotify then
+                        escuchaActiva = false
+                    end
+
+                    pcall(function()
+                        if frame and frame.Parent and frame.Position then
+                            local viewport = workspace.CurrentCamera.ViewportSize
+                            local newConfig = CargarConfiguracion()
+                            newConfig.PosicionX = frame.Position.X.Offset / viewport.X
+                            newConfig.PosicionY = frame.Position.Y.Offset / viewport.Y
+                            GuardarConfiguracion(newConfig)
+                        end
+                    end)
+
+                    pcall(function()
+                        local old = CoreGui:FindFirstChild("JXNullChat_V2")
+                        if old then old:Destroy() end
+                    end)
+
+                    gui, chatBox, frame, sendButton, textBox, settingsFrame, bgImage = nil, nil, nil, nil, nil, nil, nil
+                    mensajesMostrados, ultimoMensajeID = {}, nil
+                    primeraVez = true
+                    
+                end
+            end
+        })
+
+    else
+        warn(" _G.MainTab no encontrado después de 5 segundos.")
+        warn(" Puedes activar el chat manualmente con: crearChatGUI()")
+    end
+end)
+
+-- CLEANUP AL SALIR
+game:GetService("Players").PlayerRemoving:Connect(function(plr)
+    if plr == player then
+        pcall(function()
+            if gui then 
+                gui:Destroy() 
+            end
+        end)
+    end
+end)
