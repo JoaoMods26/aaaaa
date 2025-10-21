@@ -331,6 +331,49 @@ local function showMessages(data)
         local avatarCorner = Instance.new("UICorner", avatarContainer)
         avatarCorner.CornerRadius = UDim.new(0, avatarSize/2)
 
+        -- 🌟 BORDE ANIMADO PARA OWNERS
+        if ChatScripters[username] then
+            -- Frame de borde exterior con gradiente
+            local borderFrame = Instance.new("Frame")
+            borderFrame.Name = "BorderFrame"
+            borderFrame.Size = UDim2.new(0, avatarSize + 6, 0, avatarSize + 6)
+            borderFrame.Position = UDim2.new(0, 2, 0, 2)
+            borderFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+            borderFrame.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+            borderFrame.ZIndex = 2
+            borderFrame.Parent = container
+
+            local borderCorner = Instance.new("UICorner", borderFrame)
+            borderCorner.CornerRadius = UDim.new(0, (avatarSize + 6)/2)
+
+            -- Gradiente dorado animado en el borde
+            local borderGradient = Instance.new("UIGradient", borderFrame)
+            borderGradient.Color = ColorSequence.new{
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 180, 0)),
+                ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 215, 0)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 240, 150)),
+                ColorSequenceKeypoint.new(0.75, Color3.fromRGB(255, 215, 0)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 180, 0))
+            }
+
+            -- Animación rotatoria del gradiente
+            task.spawn(function()
+                local rotation = 0
+                while borderFrame and borderFrame.Parent do
+                    rotation = (rotation + 2) % 360
+                    if borderGradient and borderGradient.Parent then
+                        borderGradient.Rotation = rotation
+                    else
+                        break
+                    end
+                    task.wait(0.03)
+                end
+            end)
+
+            -- Reposicionar el avatar container sobre el borde
+            avatarContainer.Position = UDim2.new(0, 8, 0, 8)
+        end
+
         local avatarStroke = Instance.new("UIStroke", avatarContainer)
         avatarStroke.Color = ChatScripters[username] and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(88, 101, 242)
         avatarStroke.Thickness = 2
@@ -369,95 +412,60 @@ local function showMessages(data)
         usernameLabel.ZIndex = 4
         usernameLabel.Parent = messageFrame
 
-        -- 👑 TAG PREMIUM DE OWNER CON EFECTOS
+        -- 👑 TAG PREMIUM DE OWNER CON BORDE ANIMADO
         if ChatScripters[username] then
+            local tagWidth = isMobile and 70 or 85
+            local tagHeight = isMobile and 18 or 20
+
+            -- Frame de borde exterior animado
+            local tagBorderFrame = Instance.new("Frame")
+            tagBorderFrame.Name = "TagBorderFrame"
+            tagBorderFrame.Size = UDim2.new(0, tagWidth + 4, 0, tagHeight + 4)
+            tagBorderFrame.Position = UDim2.new(0, usernameLabel.TextBounds.X + 6, 0, -2)
+            tagBorderFrame.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+            tagBorderFrame.BorderSizePixel = 0
+            tagBorderFrame.ZIndex = 4
+            tagBorderFrame.Parent = messageFrame
+
+            local tagBorderCorner = Instance.new("UICorner", tagBorderFrame)
+            tagBorderCorner.CornerRadius = UDim.new(0, isMobile and 8 or 10)
+
+            -- Gradiente dorado animado en el borde
+            local tagBorderGradient = Instance.new("UIGradient", tagBorderFrame)
+            tagBorderGradient.Color = ColorSequence.new{
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 180, 0)),
+                ColorSequenceKeypoint.new(0.25, Color3.fromRGB(255, 215, 0)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 240, 150)),
+                ColorSequenceKeypoint.new(0.75, Color3.fromRGB(255, 215, 0)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 180, 0))
+            }
+
+            -- Animación rotatoria del gradiente del borde
+            task.spawn(function()
+                local rotation = 0
+                while tagBorderFrame and tagBorderFrame.Parent do
+                    rotation = (rotation + 3) % 360
+                    if tagBorderGradient and tagBorderGradient.Parent then
+                        tagBorderGradient.Rotation = rotation
+                    else
+                        break
+                    end
+                    task.wait(0.03)
+                end
+            end)
+
+            -- Tag principal (interior)
             local tagContainer = Instance.new("Frame")
             tagContainer.Name = "TagContainer"
-            tagContainer.Size = UDim2.new(0, isMobile and 70 or 85, 0, isMobile and 18 or 20)
-            tagContainer.Position = UDim2.new(0, usernameLabel.TextBounds.X + 8, 0, 0)
-            tagContainer.BackgroundTransparency = 1
-            tagContainer.ZIndex = 4
-            tagContainer.Parent = messageFrame
+            tagContainer.Size = UDim2.new(0, tagWidth, 0, tagHeight)
+            tagContainer.Position = UDim2.new(0, 2, 0, 2)
+            tagContainer.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+            tagContainer.BorderSizePixel = 0
+            tagContainer.ZIndex = 5
+            tagContainer.Parent = tagBorderFrame
 
-            -- Fondo con gradiente dorado
-            local tagBg = Instance.new("Frame")
-            tagBg.Name = "TagBackground"
-            tagBg.Size = UDim2.new(1, 0, 1, 0)
-            tagBg.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
-            tagBg.BorderSizePixel = 0
-            tagBg.ZIndex = 5
-            tagBg.Parent = tagContainer
-
-            local tagCorner = Instance.new("UICorner", tagBg)
+            local tagCorner = Instance.new("UICorner", tagContainer)
             tagCorner.CornerRadius = UDim.new(0, isMobile and 6 or 8)
-
-            -- Gradiente dorado premium
-            local tagGradient = Instance.new("UIGradient", tagBg)
-            tagGradient.Color = ColorSequence.new{
-                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 215, 0)),
-                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 235, 100)),
-                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 195, 0))
-            }
-            tagGradient.Rotation = 45
-
-            -- Animación del gradiente
-            task.spawn(function()
-                while tagGradient and tagGradient.Parent do
-                    for i = 0, 360, 3 do
-                        if tagGradient and tagGradient.Parent then
-                            tagGradient.Rotation = i
-                        else
-                            break
-                        end
-                        task.wait(0.05)
-                    end
-                end
-            end)
-
-            -- Borde brillante
-            local tagStroke = Instance.new("UIStroke", tagBg)
-            tagStroke.Color = Color3.fromRGB(255, 255, 200)
-            tagStroke.Thickness = 1.5
-            tagStroke.Transparency = 0
-
-            -- Animación de brillo en el borde
-            task.spawn(function()
-                while tagStroke and tagStroke.Parent do
-                    TweenService:Create(tagStroke, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                        Transparency = 0.3
-                    }):Play()
-                    task.wait(1)
-                    TweenService:Create(tagStroke, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
-                        Transparency = 0
-                    }):Play()
-                    task.wait(1)
-                end
-            end)
-
-            -- Efecto de brillo interno
-            local shine = Instance.new("Frame")
-            shine.Name = "Shine"
-            shine.Size = UDim2.new(0.3, 0, 1, 0)
-            shine.Position = UDim2.new(-0.3, 0, 0, 0)
-            shine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-            shine.BackgroundTransparency = 0.5
-            shine.BorderSizePixel = 0
-            shine.ZIndex = 6
-            shine.Parent = tagBg
-
-            local shineCorner = Instance.new("UICorner", shine)
-            shineCorner.CornerRadius = UDim.new(0, isMobile and 6 or 8)
-
-            -- Animación de brillo deslizante
-            task.spawn(function()
-                while shine and shine.Parent do
-                    shine.Position = UDim2.new(-0.3, 0, 0, 0)
-                    TweenService:Create(shine, TweenInfo.new(2, Enum.EasingStyle.Sine), {
-                        Position = UDim2.new(1, 0, 0, 0)
-                    }):Play()
-                    task.wait(3)
-                end
-            end)
 
             -- Texto del tag
             local tagLabel = Instance.new("TextLabel")
@@ -465,27 +473,50 @@ local function showMessages(data)
             tagLabel.Size = UDim2.new(1, 0, 1, 0)
             tagLabel.BackgroundTransparency = 1
             tagLabel.Text = "👑 OWNER"
-            tagLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+            tagLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
             tagLabel.Font = Enum.Font.GothamBold
             tagLabel.TextSize = isMobile and 9 or 10
-            tagLabel.ZIndex = 7
+            tagLabel.ZIndex = 6
             tagLabel.Parent = tagContainer
 
-            -- Sombra del texto para mayor contraste
-            local tagShadow = Instance.new("UIStroke", tagLabel)
-            tagShadow.Color = Color3.fromRGB(180, 140, 0)
-            tagShadow.Thickness = 0.5
+            -- Gradiente en el texto
+            local textGradient = Instance.new("UIGradient", tagLabel)
+            textGradient.Color = ColorSequence.new{
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 215, 0)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 240, 150)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 215, 0))
+            }
 
-            -- Efecto hover en el tag
-            tagContainer.MouseEnter:Connect(function()
+            -- Animación del gradiente del texto
+            task.spawn(function()
+                local rotation = 0
+                while tagLabel and tagLabel.Parent do
+                    rotation = (rotation + 2) % 360
+                    if textGradient and textGradient.Parent then
+                        textGradient.Rotation = rotation
+                    else
+                        break
+                    end
+                    task.wait(0.05)
+                end
+            end)
+
+            -- Efecto hover
+            tagBorderFrame.MouseEnter:Connect(function()
+                TweenService:Create(tagBorderFrame, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
+                    Size = UDim2.new(0, (tagWidth + 4) * 1.05, 0, (tagHeight + 4) * 1.05)
+                }):Play()
                 TweenService:Create(tagContainer, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
-                    Size = UDim2.new(0, (isMobile and 70 or 85) * 1.1, 0, (isMobile and 18 or 20) * 1.1)
+                    Size = UDim2.new(0, tagWidth * 1.05, 0, tagHeight * 1.05)
                 }):Play()
             end)
 
-            tagContainer.MouseLeave:Connect(function()
+            tagBorderFrame.MouseLeave:Connect(function()
+                TweenService:Create(tagBorderFrame, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
+                    Size = UDim2.new(0, tagWidth + 4, 0, tagHeight + 4)
+                }):Play()
                 TweenService:Create(tagContainer, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
-                    Size = UDim2.new(0, isMobile and 70 or 85, 0, isMobile and 18 or 20)
+                    Size = UDim2.new(0, tagWidth, 0, tagHeight)
                 }):Play()
             end)
         end
