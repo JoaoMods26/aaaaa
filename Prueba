@@ -1,5 +1,5 @@
 -- JXNULL CHAT GLOBAL
--- Cambio de stilo mismo funcionamiento
+-- Optimización completa para móvil y PC
 
 -- Sistema de carpetas
 if makefolder and not isfolder("JXNULL_CONFIGS") then
@@ -29,11 +29,12 @@ local hrpCFrame = nil
 local gui, chatBox, frame, sendButton, textBox, settingsFrame, bgImage = nil, nil, nil, nil, nil, nil, nil
 local ultimoMensajeID = nil
 local guiActivo = false
-local ShowChatNotify = false -- DESACTIVADO POR DEFECTO
+local ShowChatNotify = false
 local mensajesMostrados = {}
 local enviandoMensaje = false
 local primeraVez = true
-local escuchaActiva = false --Control del loop de escucha
+local escuchaActiva = false
+local isMobile = false -- Detectar si es móvil
 
 -- URL de Firebase
 local firebaseURL = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Chat.json"
@@ -170,7 +171,7 @@ local function GuardarConfiguracion(datos)
     end
 end
 
--- FUNCIÓN: MOSTRAR MENSAJES (OPTIMIZADO)
+-- FUNCIÓN: MOSTRAR MENSAJES (OPTIMIZADO PARA MÓVIL)
 local function showMessages(data)
     if not chatBox then return end
 
@@ -245,9 +246,13 @@ local function showMessages(data)
             continue
         end
 
+        -- 📱 AJUSTE DINÁMICO DE ALTURA PARA MÓVIL
+        local containerHeight = isMobile and 95 or 70
+        local avatarSize = isMobile and 45 or 50
+
         local container = Instance.new("Frame")
         container.Name = "MessageContainer_" .. messageId
-        container.Size = UDim2.new(1, -10, 0, 70)
+        container.Size = UDim2.new(1, -10, 0, containerHeight)
         container.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
         container.BackgroundTransparency = 0.3
         container.BorderSizePixel = 0
@@ -290,14 +295,14 @@ local function showMessages(data)
 
         local avatarContainer = Instance.new("Frame")
         avatarContainer.Name = "AvatarContainer"
-        avatarContainer.Size = UDim2.new(0, 50, 0, 50)
+        avatarContainer.Size = UDim2.new(0, avatarSize, 0, avatarSize)
         avatarContainer.Position = UDim2.new(0, 5, 0, 5)
         avatarContainer.BackgroundColor3 = Color3.fromRGB(50, 50, 55)
         avatarContainer.ZIndex = 3
         avatarContainer.Parent = container
 
         local avatarCorner = Instance.new("UICorner", avatarContainer)
-        avatarCorner.CornerRadius = UDim.new(0, 25)
+        avatarCorner.CornerRadius = UDim.new(0, avatarSize/2)
 
         local avatarStroke = Instance.new("UIStroke", avatarContainer)
         avatarStroke.Color = ChatScripters[username] and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(88, 101, 242)
@@ -313,41 +318,52 @@ local function showMessages(data)
         avatar.Parent = avatarContainer
 
         local avatarImgCorner = Instance.new("UICorner", avatar)
-        avatarImgCorner.CornerRadius = UDim.new(0, 23)
+        avatarImgCorner.CornerRadius = UDim.new(0, (avatarSize-4)/2)
+
+        -- 📱 AJUSTE DE POSICIÓN Y TAMAÑO DEL FRAME DE MENSAJE PARA MÓVIL
+        local messageFrameWidth = isMobile and -90 or -120
+        local messageFramePosX = isMobile and (avatarSize + 10) or 60
 
         local messageFrame = Instance.new("Frame")
         messageFrame.Name = "MessageFrame"
-        messageFrame.Size = UDim2.new(1, -120, 1, -10)
-        messageFrame.Position = UDim2.new(0, 60, 0, 5)
+        messageFrame.Size = UDim2.new(1, messageFrameWidth, 1, -10)
+        messageFrame.Position = UDim2.new(0, messageFramePosX, 0, 5)
         messageFrame.BackgroundTransparency = 1
         messageFrame.ZIndex = 3
         messageFrame.Parent = container
 
+        -- 📱 TEXTOS ESCALADOS PARA MÓVIL
+        local usernameFontSize = isMobile and 11 or 14
+        local timestampFontSize = isMobile and 9 or 11
+        local gameInfoFontSize = isMobile and 8 or 10
+        local messageFontSize = isMobile and 11 or 13
+
         local usernameLabel = Instance.new("TextLabel")
         usernameLabel.Name = "Username"
-        usernameLabel.Size = UDim2.new(1, 0, 0, 20)
+        usernameLabel.Size = UDim2.new(1, 0, 0, 18)
         usernameLabel.Position = UDim2.new(0, 0, 0, 0)
         usernameLabel.BackgroundTransparency = 1
         usernameLabel.Text = username
         usernameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         usernameLabel.Font = Enum.Font.GothamBold
-        usernameLabel.TextSize = 14
+        usernameLabel.TextSize = usernameFontSize
         usernameLabel.TextXAlignment = Enum.TextXAlignment.Left
         usernameLabel.TextScaled = false
+        usernameLabel.TextTruncate = Enum.TextTruncate.AtEnd
         usernameLabel.ZIndex = 4
         usernameLabel.Parent = messageFrame
 
         if tag ~= "" then
             local tagLabel = Instance.new("TextLabel")
             tagLabel.Name = "Tag"
-            tagLabel.Size = UDim2.new(0, 80, 0, 18)
+            tagLabel.Size = UDim2.new(0, isMobile and 65 or 80, 0, isMobile and 15 or 18)
             tagLabel.Position = UDim2.new(0, usernameLabel.TextBounds.X + 5, 0, 1)
             tagLabel.BackgroundColor3 = tagColor
             tagLabel.BackgroundTransparency = 0.7
             tagLabel.Text = tag
             tagLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
             tagLabel.Font = Enum.Font.GothamBold
-            tagLabel.TextSize = 10
+            tagLabel.TextSize = isMobile and 8 or 10
             tagLabel.ZIndex = 4
             tagLabel.Parent = messageFrame
 
@@ -357,42 +373,45 @@ local function showMessages(data)
 
         local timestamp = Instance.new("TextLabel")
         timestamp.Name = "Timestamp"
-        timestamp.Size = UDim2.new(0, 100, 0, 15)
-        timestamp.Position = UDim2.new(0, 0, 0, 20)
+        timestamp.Size = UDim2.new(0, isMobile and 80 or 100, 0, 15)
+        timestamp.Position = UDim2.new(0, 0, 0, isMobile and 18 or 20)
         timestamp.BackgroundTransparency = 1
         timestamp.Text = os.date("%H:%M:%S", msg.time or os.time())
         timestamp.TextColor3 = Color3.fromRGB(150, 150, 150)
         timestamp.Font = Enum.Font.Gotham
-        timestamp.TextSize = 11
+        timestamp.TextSize = timestampFontSize
         timestamp.TextXAlignment = Enum.TextXAlignment.Left
         timestamp.ZIndex = 4
         timestamp.Parent = messageFrame
 
+        -- 📱 NOMBRE DEL JUEGO COMPLETO EN MÓVIL (SIN CORTE)
+        local gameNameText = msg.game_name or "Unknown Game"
         local gameInfo = Instance.new("TextLabel")
         gameInfo.Name = "GameInfo"
-        gameInfo.Size = UDim2.new(1, -110, 0, 15)
-        gameInfo.Position = UDim2.new(0, 110, 0, 20)
+        gameInfo.Size = UDim2.new(1, isMobile and -85 or -110, 0, 15)
+        gameInfo.Position = UDim2.new(0, isMobile and 85 or 110, 0, isMobile and 18 or 20)
         gameInfo.BackgroundTransparency = 1
-        gameInfo.Text = "🎮 " .. (msg.game_name and msg.game_name:sub(1, 20) or "Unknown Game")
+        gameInfo.Text = "🎮 " .. gameNameText
         gameInfo.TextColor3 = Color3.fromRGB(100, 180, 255)
         gameInfo.Font = Enum.Font.GothamMedium
-        gameInfo.TextSize = 10
+        gameInfo.TextSize = gameInfoFontSize
         gameInfo.TextXAlignment = Enum.TextXAlignment.Left
         gameInfo.TextTruncate = Enum.TextTruncate.AtEnd
         gameInfo.ZIndex = 4
         gameInfo.Parent = messageFrame
 
-        if msg.game_name and #msg.game_name > 20 then
+        -- 📱 TOOLTIP MEJORADO PARA MÓVIL
+        if msg.game_name and #msg.game_name > (isMobile and 15 or 20) then
             local tooltip = Instance.new("TextLabel")
             tooltip.Name = "Tooltip"
-            tooltip.Size = UDim2.new(0, 200, 0, 30)
-            tooltip.Position = UDim2.new(0, 110, 0, -35)
+            tooltip.Size = UDim2.new(0, isMobile and 180 or 200, 0, 35)
+            tooltip.Position = UDim2.new(0, isMobile and 0 or 110, 0, isMobile and -40 or -35)
             tooltip.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
             tooltip.BackgroundTransparency = 0.1
             tooltip.Text = "  " .. msg.game_name .. "  "
             tooltip.TextColor3 = Color3.fromRGB(255, 255, 255)
             tooltip.Font = Enum.Font.Gotham
-            tooltip.TextSize = 11
+            tooltip.TextSize = isMobile and 9 or 11
             tooltip.TextWrapped = true
             tooltip.Visible = false
             tooltip.ZIndex = 15
@@ -414,15 +433,19 @@ local function showMessages(data)
             end)
         end
 
+        -- 📱 MENSAJE DE TEXTO CON MÁS ESPACIO EN MÓVIL
+        local messageTextHeight = isMobile and 40 or 30
+        local messageTextPosY = isMobile and 33 or 35
+
         local messageText = Instance.new("TextLabel")
         messageText.Name = "MessageText"
-        messageText.Size = UDim2.new(1, -5, 0, 30)
-        messageText.Position = UDim2.new(0, 0, 0, 35)
+        messageText.Size = UDim2.new(1, -5, 0, messageTextHeight)
+        messageText.Position = UDim2.new(0, 0, 0, messageTextPosY)
         messageText.BackgroundTransparency = 1
         messageText.Text = text
         messageText.TextColor3 = Color3.fromRGB(230, 230, 230)
         messageText.Font = Enum.Font.Gotham
-        messageText.TextSize = 13
+        messageText.TextSize = messageFontSize
         messageText.TextXAlignment = Enum.TextXAlignment.Left
         messageText.TextYAlignment = Enum.TextYAlignment.Top
         messageText.TextWrapped = true
@@ -430,16 +453,20 @@ local function showMessages(data)
         messageText.ZIndex = 4
         messageText.Parent = messageFrame
 
+        -- 📱 BOTÓN DE COPIAR ADAPTADO PARA MÓVIL
+        local copyBtnSize = isMobile and 38 or 45
+        local copyBtnPosX = isMobile and -43 or -50
+
         local copyBtn = Instance.new("TextButton")
         copyBtn.Name = "CopyButton"
-        copyBtn.Size = UDim2.new(0, 45, 0, 45)
-        copyBtn.Position = UDim2.new(1, -50, 0, 7)
+        copyBtn.Size = UDim2.new(0, copyBtnSize, 0, copyBtnSize)
+        copyBtn.Position = UDim2.new(1, copyBtnPosX, 0, 7)
         copyBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
         copyBtn.BackgroundTransparency = 0.5
         copyBtn.Text = "📋"
         copyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
         copyBtn.Font = Enum.Font.GothamBold
-        copyBtn.TextSize = 20
+        copyBtn.TextSize = isMobile and 16 or 20
         copyBtn.BorderSizePixel = 0
         copyBtn.ZIndex = 5
         copyBtn.Parent = container
@@ -478,7 +505,7 @@ local function showMessages(data)
         container.BackgroundTransparency = 1
         
         TweenService:Create(container, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-            Size = UDim2.new(1, -10, 0, 70),
+            Size = UDim2.new(1, -10, 0, containerHeight),
             BackgroundTransparency = 0.3
         }):Play()
     end
@@ -514,9 +541,16 @@ function crearChatGUI()
     local posX = (config.PosicionX or 0.05) * viewport.X
     local posY = (config.PosicionY or 0.3) * viewport.Y
 
+    -- 📱 DETECCIÓN DE MÓVIL
+    isMobile = viewport.X < 800
+
+    -- 📱 DIMENSIONES ADAPTADAS
+    local frameWidth = isMobile and math.min(viewport.X * 0.95, 400) or 450
+    local frameHeight = isMobile and math.min(viewport.Y * 0.65, 500) or 380
+
     frame = Instance.new("Frame")
     frame.Name = "MainFrame"
-    frame.Size = UDim2.new(0, 450, 0, 380)
+    frame.Size = UDim2.new(0, frameWidth, 0, frameHeight)
     frame.Position = UDim2.new(0, posX, 0, posY)
     frame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
     frame.BorderSizePixel = 0
@@ -524,27 +558,12 @@ function crearChatGUI()
     frame.ZIndex = 1
     frame.Parent = gui
 
--- 🔧 Escalado adaptable para móvil/tablet
-local screenSize = workspace.CurrentCamera.ViewportSize
-if screenSize.X < 800 then
-    local scaleFactor = math.clamp(screenSize.X / 1280, 0.65, 0.9)
-    frame.Size = UDim2.new(0, 450 * scaleFactor, 0, 380 * scaleFactor)
-
-    local mobileX = math.clamp(posX, 10, screenSize.X - frame.AbsoluteSize.X - 10)
-    local mobileY = math.clamp(posY, 10, screenSize.Y - frame.AbsoluteSize.Y - 10)
-    frame.Position = UDim2.new(0, mobileX, 0, mobileY)
-
-    -- Escala general de textos e iconos
-    local function scaleTextObjects(guiObject)
-        for _, obj in ipairs(guiObject:GetDescendants()) do
-            if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
-                obj.TextScaled = false
-                obj.TextSize = math.max(10, (obj.TextSize or 14) * scaleFactor)
-            end
-        end
+    -- 📱 AJUSTE DE POSICIÓN PARA MÓVIL
+    if isMobile then
+        local mobileX = math.clamp(posX, 10, viewport.X - frameWidth - 10)
+        local mobileY = math.clamp(posY, 10, viewport.Y - frameHeight - 10)
+        frame.Position = UDim2.new(0, mobileX, 0, mobileY)
     end
-    scaleTextObjects(frame)
-end
 
     local corner = Instance.new("UICorner", frame)
     corner.CornerRadius = UDim.new(0, 12)
@@ -575,10 +594,13 @@ end
 
     frame.BackgroundTransparency = config.Transparency or 0
 
+    -- 📱 BARRA DE TÍTULO ADAPTADA
+    local titleBarHeight = isMobile and 35 or 40
+
     local titleBar = Instance.new("Frame")
     titleBar.Name = "TitleBar"
-    titleBar.Size = UDim2.new(1, 0, 0, 40)
-    titleBar.Position = UDim2.new(0, 0, 0, -40)
+    titleBar.Size = UDim2.new(1, 0, 0, titleBarHeight)
+    titleBar.Position = UDim2.new(0, 0, 0, -titleBarHeight)
     titleBar.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
     titleBar.BorderSizePixel = 0
     titleBar.ZIndex = 10
@@ -589,12 +611,12 @@ end
 
     local title = Instance.new("TextLabel")
     title.Name = "Title"
-    title.Size = UDim2.new(0, 200, 1, 0)
+    title.Size = UDim2.new(0, isMobile and 120 or 200, 1, 0)
     title.Position = UDim2.new(0, 10, 0, 0)
     title.BackgroundTransparency = 1
     title.Text = "⚡ JXNULL CHAT"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
-    title.TextSize = 18
+    title.TextSize = isMobile and 14 or 18
     title.Font = Enum.Font.GothamBold
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.TextYAlignment = Enum.TextYAlignment.Center
@@ -620,15 +642,19 @@ end
         end
     end)
 
+    -- 📱 BOTONES REORGANIZADOS PARA MÓVIL (SIN SUPERPOSICIÓN)
+    local btnSize = isMobile and 28 or 32
+    local btnSpacing = isMobile and 34 or 38
+
     local settingsBtn = Instance.new("TextButton")
     settingsBtn.Name = "SettingsButton"
-    settingsBtn.Size = UDim2.new(0, 32, 0, 32)
-    settingsBtn.Position = UDim2.new(1, -38, 0.5, -16)
+    settingsBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
+    settingsBtn.Position = UDim2.new(1, -(btnSize + 5), 0.5, -btnSize/2)
     settingsBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
     settingsBtn.Text = "⚙️"
     settingsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     settingsBtn.Font = Enum.Font.GothamBold
-    settingsBtn.TextSize = 18
+    settingsBtn.TextSize = isMobile and 14 or 18
     settingsBtn.BorderSizePixel = 0
     settingsBtn.ZIndex = 12
     settingsBtn.Parent = titleBar
@@ -645,13 +671,13 @@ end
     if ChatScripters[player.Name] then
         local deleteBtn = Instance.new("TextButton")
         deleteBtn.Name = "DeleteButton"
-        deleteBtn.Size = UDim2.new(0, 32, 0, 32)
-        deleteBtn.Position = UDim2.new(1, -75, 0.5, -16)
+        deleteBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
+        deleteBtn.Position = UDim2.new(1, -(btnSize * 2 + 10), 0.5, -btnSize/2)
         deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
         deleteBtn.Text = "🗑️"
         deleteBtn.TextColor3 = Color3.new(1, 1, 1)
         deleteBtn.Font = Enum.Font.GothamBold
-        deleteBtn.TextSize = 18
+        deleteBtn.TextSize = isMobile and 14 or 18
         deleteBtn.ZIndex = 12
         deleteBtn.Parent = titleBar
 
@@ -662,7 +688,7 @@ end
 
         deleteBtn.MouseButton1Click:Connect(function()
             local originalSize = deleteBtn.Size
-            TweenService:Create(deleteBtn, TweenInfo.new(0.1), {Size = UDim2.new(0, 28, 0, 28)}):Play()
+            TweenService:Create(deleteBtn, TweenInfo.new(0.1), {Size = UDim2.new(0, btnSize - 4, 0, btnSize - 4)}):Play()
             task.wait(0.1)
             TweenService:Create(deleteBtn, TweenInfo.new(0.1), {Size = originalSize}):Play()
 
@@ -704,10 +730,13 @@ end
         end)
     end
 
+    -- 📱 BOTONES DE DISCORD REPOSICIONADOS (SIN SUPERPOSICIÓN)
+    local discordStartPos = isMobile and 135 or 220
+    
     local discordBtn = Instance.new("ImageButton")
     discordBtn.Name = "DiscordButton1"
-    discordBtn.Size = UDim2.new(0, 32, 0, 32)
-    discordBtn.Position = UDim2.new(0, 220, 0.5, -16)
+    discordBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
+    discordBtn.Position = UDim2.new(0, discordStartPos, 0.5, -btnSize/2)
     discordBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
     discordBtn.BackgroundTransparency = 0.3
     discordBtn.Image = "rbxassetid://76181608348088"
@@ -728,8 +757,8 @@ end
 
     local discordBtn2 = Instance.new("ImageButton")
     discordBtn2.Name = "DiscordButton2"
-    discordBtn2.Size = UDim2.new(0, 32, 0, 32)
-    discordBtn2.Position = UDim2.new(0, 260, 0.5, -16)
+    discordBtn2.Size = UDim2.new(0, btnSize, 0, btnSize)
+    discordBtn2.Position = UDim2.new(0, discordStartPos + btnSpacing, 0.5, -btnSize/2)
     discordBtn2.BackgroundColor3 = Color3.fromRGB(114, 137, 218)
     discordBtn2.BackgroundTransparency = 0.3
     discordBtn2.Image = "rbxassetid://82574844253944"
@@ -805,14 +834,16 @@ end
 
     UserInputService.InputChanged:Connect(updateInput)
 
-    -- ÁREA DE MENSAJES
+    -- 📱 ÁREA DE MENSAJES ADAPTADA
+    local chatBoxHeight = isMobile and 0.70 or 0.78
+
     chatBox = Instance.new("ScrollingFrame")
     chatBox.Name = "ChatBox"
-    chatBox.Size = UDim2.new(1, -16, 0.78, -10)
+    chatBox.Size = UDim2.new(1, -16, chatBoxHeight, -10)
     chatBox.Position = UDim2.new(0, 8, 0, 8)
     chatBox.BackgroundTransparency = 1
     chatBox.BorderSizePixel = 0
-    chatBox.ScrollBarThickness = 6
+    chatBox.ScrollBarThickness = isMobile and 4 or 6
     chatBox.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
     chatBox.AutomaticCanvasSize = Enum.AutomaticSize.Y
     chatBox.CanvasSize = UDim2.new(0, 0, 0, 0)
@@ -822,7 +853,7 @@ end
 
     local chatLayout = Instance.new("UIListLayout", chatBox)
     chatLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    chatLayout.Padding = UDim.new(0, 10)
+    chatLayout.Padding = UDim.new(0, isMobile and 8 or 10)
     chatLayout.FillDirection = Enum.FillDirection.Vertical
 
     local chatPadding = Instance.new("UIPadding", chatBox)
@@ -831,11 +862,14 @@ end
     chatPadding.PaddingTop = UDim.new(0, 5)
     chatPadding.PaddingBottom = UDim.new(0, 5)
 
-    -- 📝 CONTENEDOR DE INPUT
+    -- 📝 CONTENEDOR DE INPUT ADAPTADO
+    local inputHeight = isMobile and 0.14 or 0.12
+    local inputPosY = isMobile and 0.72 or 0.68
+
     local inputContainer = Instance.new("Frame")
     inputContainer.Name = "InputContainer"
-    inputContainer.Size = UDim2.new(1, -16, 0.12, 0)
-    inputContainer.Position = UDim2.new(0, 8, 0.68, 50)
+    inputContainer.Size = UDim2.new(1, -16, inputHeight, 0)
+    inputContainer.Position = UDim2.new(0, 8, inputPosY, 50)
     inputContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     inputContainer.BorderSizePixel = 0
     inputContainer.ZIndex = 2
@@ -851,14 +885,14 @@ end
 
     textBox = Instance.new("TextBox")
     textBox.Name = "MessageInput"
-    textBox.Size = UDim2.new(0.65, -10, 1, -10)
+    textBox.Size = UDim2.new(0.62, -10, 1, -10)
     textBox.Position = UDim2.new(0, 8, 0, 5)
     textBox.BackgroundTransparency = 1
     textBox.Text = ""
     textBox.PlaceholderText = "💬 Escribe tu mensaje..."
     textBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
     textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
-    textBox.TextSize = 14
+    textBox.TextSize = isMobile and 12 or 14
     textBox.Font = Enum.Font.Gotham
     textBox.TextXAlignment = Enum.TextXAlignment.Left
     textBox.TextYAlignment = Enum.TextYAlignment.Center
@@ -885,13 +919,13 @@ end
 
     sendButton = Instance.new("TextButton")
     sendButton.Name = "SendButton"
-    sendButton.Size = UDim2.new(0.33, -8, 1, -10)
-    sendButton.Position = UDim2.new(0.67, 0, 0, 5)
+    sendButton.Size = UDim2.new(0.36, -8, 1, -10)
+    sendButton.Position = UDim2.new(0.64, 0, 0, 5)
     sendButton.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
     sendButton.Text = "📨 ENVIAR"
     sendButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     sendButton.Font = Enum.Font.GothamBold
-    sendButton.TextSize = 13
+    sendButton.TextSize = isMobile and 11 or 13
     sendButton.BorderSizePixel = 0
     sendButton.ZIndex = 3
     sendButton.Parent = inputContainer
@@ -982,11 +1016,14 @@ end
         end
     end)
 
-    -- 🎛️ PANEL DE CONFIGURACIÓN
+    -- 🎛️ PANEL DE CONFIGURACIÓN ADAPTADO
+    local settingsPanelWidth = isMobile and 220 or 240
+    local settingsPanelHeight = isMobile and 200 or 220
+
     settingsFrame = Instance.new("Frame")
     settingsFrame.Name = "SettingsPanel"
-    settingsFrame.Size = UDim2.new(0, 240, 0, 220)
-    settingsFrame.Position = UDim2.new(0.5, -120, 0.5, -110)
+    settingsFrame.Size = UDim2.new(0, settingsPanelWidth, 0, settingsPanelHeight)
+    settingsFrame.Position = UDim2.new(0.5, -settingsPanelWidth/2, 0.5, -settingsPanelHeight/2)
     settingsFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
     settingsFrame.BorderSizePixel = 0
     settingsFrame.Visible = false
@@ -1002,12 +1039,12 @@ end
 
     local settingsTitle = Instance.new("TextLabel")
     settingsTitle.Name = "PanelTitle"
-    settingsTitle.Size = UDim2.new(1, 0, 0, 35)
+    settingsTitle.Size = UDim2.new(1, 0, 0, isMobile and 30 or 35)
     settingsTitle.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
     settingsTitle.Text = "⚙️ CONFIGURACIÓN"
     settingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     settingsTitle.Font = Enum.Font.GothamBold
-    settingsTitle.TextSize = 14
+    settingsTitle.TextSize = isMobile and 12 or 14
     settingsTitle.ZIndex = 21
     settingsTitle.Parent = settingsFrame
 
@@ -1015,27 +1052,27 @@ end
     settingsTitleCorner.CornerRadius = UDim.new(0, 12)
 
     local transparencyLabel = Instance.new("TextLabel")
-    transparencyLabel.Size = UDim2.new(1, -20, 0, 20)
-    transparencyLabel.Position = UDim2.new(0, 10, 0, 45)
+    transparencyLabel.Size = UDim2.new(1, -20, 0, 18)
+    transparencyLabel.Position = UDim2.new(0, 10, 0, isMobile and 38 or 45)
     transparencyLabel.BackgroundTransparency = 1
     transparencyLabel.Text = "Transparencia (0-1):"
     transparencyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     transparencyLabel.Font = Enum.Font.Gotham
-    transparencyLabel.TextSize = 12
+    transparencyLabel.TextSize = isMobile and 10 or 12
     transparencyLabel.TextXAlignment = Enum.TextXAlignment.Left
     transparencyLabel.ZIndex = 21
     transparencyLabel.Parent = settingsFrame
 
     local transparencyInput = Instance.new("TextBox")
     transparencyInput.Name = "TransparencyInput"
-    transparencyInput.Size = UDim2.new(1, -20, 0, 32)
-    transparencyInput.Position = UDim2.new(0, 10, 0, 68)
+    transparencyInput.Size = UDim2.new(1, -20, 0, isMobile and 28 or 32)
+    transparencyInput.Position = UDim2.new(0, 10, 0, isMobile and 58 or 68)
     transparencyInput.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
     transparencyInput.PlaceholderText = "0.5"
     transparencyInput.Text = tostring(config.Transparency or 0)
     transparencyInput.TextColor3 = Color3.fromRGB(255, 255, 255)
     transparencyInput.Font = Enum.Font.Gotham
-    transparencyInput.TextSize = 13
+    transparencyInput.TextSize = isMobile and 11 or 13
     transparencyInput.ZIndex = 21
     transparencyInput.Parent = settingsFrame
 
@@ -1043,27 +1080,27 @@ end
     transCorner.CornerRadius = UDim.new(0, 6)
 
     local imageLabel = Instance.new("TextLabel")
-    imageLabel.Size = UDim2.new(1, -20, 0, 20)
-    imageLabel.Position = UDim2.new(0, 10, 0, 108)
+    imageLabel.Size = UDim2.new(1, -20, 0, 18)
+    imageLabel.Position = UDim2.new(0, 10, 0, isMobile and 94 or 108)
     imageLabel.BackgroundTransparency = 1
     imageLabel.Text = "ID de Imagen:"
     imageLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     imageLabel.Font = Enum.Font.Gotham
-    imageLabel.TextSize = 12
+    imageLabel.TextSize = isMobile and 10 or 12
     imageLabel.TextXAlignment = Enum.TextXAlignment.Left
     imageLabel.ZIndex = 21
     imageLabel.Parent = settingsFrame
 
     local imageInput = Instance.new("TextBox")
     imageInput.Name = "ImageInput"
-    imageInput.Size = UDim2.new(1, -20, 0, 32)
-    imageInput.Position = UDim2.new(0, 10, 0, 131)
+    imageInput.Size = UDim2.new(1, -20, 0, isMobile and 28 or 32)
+    imageInput.Position = UDim2.new(0, 10, 0, isMobile and 114 or 131)
     imageInput.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
     imageInput.PlaceholderText = "rbxassetid://123456"
     imageInput.Text = config.ImageId or ""
     imageInput.TextColor3 = Color3.fromRGB(255, 255, 255)
     imageInput.Font = Enum.Font.Gotham
-    imageInput.TextSize = 13
+    imageInput.TextSize = isMobile and 11 or 13
     imageInput.ZIndex = 21
     imageInput.Parent = settingsFrame
 
@@ -1072,13 +1109,13 @@ end
 
     local applyBtn = Instance.new("TextButton")
     applyBtn.Name = "ApplyButton"
-    applyBtn.Size = UDim2.new(1, -20, 0, 35)
-    applyBtn.Position = UDim2.new(0, 10, 1, -45)
+    applyBtn.Size = UDim2.new(1, -20, 0, isMobile and 32 or 35)
+    applyBtn.Position = UDim2.new(0, 10, 1, isMobile and -40 or -45)
     applyBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
     applyBtn.Text = "✅ APLICAR"
     applyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     applyBtn.Font = Enum.Font.GothamBold
-    applyBtn.TextSize = 14
+    applyBtn.TextSize = isMobile and 12 or 14
     applyBtn.ZIndex = 21
     applyBtn.Parent = settingsFrame
 
@@ -1123,7 +1160,7 @@ end
         if settingsFrame.Visible then
             settingsFrame.Size = UDim2.new(0, 0, 0, 0)
             TweenService:Create(settingsFrame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
-                Size = UDim2.new(0, 240, 0, 220)
+                Size = UDim2.new(0, settingsPanelWidth, 0, settingsPanelHeight)
             }):Play()
         end
     end)
@@ -1152,7 +1189,6 @@ end
 -- SISTEMA DE ESCUCHA EN TIEMPO REAL (INDEPENDIENTE Y OPTIMIZADO)
 task.spawn(function()
     while true do
-        --  SIEMPRE ESCUCHA (sin importar si el GUI está activo)
         if not escuchaActiva then
             task.wait(2)
             continue
@@ -1182,7 +1218,6 @@ task.spawn(function()
                     return (a.time or 0) < (b.time or 0)
                 end)
 
-                -- Limitar mensajes antiguos
                 if #mensajes >= 30 then
                     for i = 1, #mensajes - 29 do
                         local mensaj = mensajes[i]
@@ -1197,7 +1232,6 @@ task.spawn(function()
                     end
                 end
 
-                --  NOTIFICACIONES (INDEPENDIENTES DEL TOGGLE DE CHAT)
                 if ShowChatNotify and #mensajes > 0 then
                     local ultimo = mensajes[#mensajes]
                     
@@ -1215,7 +1249,6 @@ task.spawn(function()
                     ultimoMensajeID = ultimo._id
                 end
 
-                --  SOLO MUESTRA MENSAJES SI EL GUI ESTÁ ACTIVO
                 if guiActivo then
                     showMessages(decoded)
                 end
@@ -1228,7 +1261,6 @@ end)
 
 -- 🎮 SISTEMA DE TOGGLES (OPTIMIZADO Y NO BLOQUEANTE)
 task.spawn(function()
-    --  ESPERAR A QUE _G.MainTab ESTÉ DISPONIBLE (SIN BLOQUEAR)
     local intentos = 0
     while not _G.MainTab and intentos < 50 do
         task.wait(0.1)
@@ -1236,19 +1268,16 @@ task.spawn(function()
     end
 
     if _G.MainTab and _G.MainTab.CreateToggle then
-        --  TOGGLE DE NOTIFICACIONES (DESACTIVADO POR DEFECTO)
         _G.MainTab:CreateToggle({
             Name = "Notificaciones de Chat",
-            CurrentValue = false, --  DESACTIVADO POR DEFECTO
+            CurrentValue = false,
             Flag = "ChatNotifications",
             Callback = function(state)
                 ShowChatNotify = state
                 
-                --  ACTIVA LA ESCUCHA SI SE ACTIVAN NOTIFICACIONES
                 if state then
                     escuchaActiva = true
                 else
-                    --  DESACTIVA SOLO SI EL CHAT TAMBIÉN ESTÁ INACTIVO
                     if not guiActivo then
                         escuchaActiva = false
                     end
@@ -1256,7 +1285,6 @@ task.spawn(function()
             end
         })
 
-        --  TOGGLE DE CHAT GLOBAL
         _G.MainTab:CreateToggle({
             Name = "Chat Global",
             CurrentValue = false,
@@ -1269,7 +1297,7 @@ task.spawn(function()
                     end
 
                     guiActivo = true
-                    escuchaActiva = true -- ACTIVA LA ESCUCHA
+                    escuchaActiva = true
 
                     pcall(function()
                         local old = CoreGui:FindFirstChild("JXNullChat_V2")
@@ -1291,7 +1319,6 @@ task.spawn(function()
                     
                     guiActivo = false
 
-                    --  DESACTIVA ESCUCHA SOLO SI NOTIFICACIONES TAMBIÉN ESTÁN OFF
                     if not ShowChatNotify then
                         escuchaActiva = false
                     end
