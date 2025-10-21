@@ -171,7 +171,7 @@ local function GuardarConfiguracion(datos)
     end
 end
 
--- FUNCIÓN: MOSTRAR MENSAJES (OPTIMIZADO PARA MÓVIL)
+-- FUNCIÓN: MOSTRAR MENSAJES (OPTIMIZADO PARA MÓVIL Y DINÁMICO)
 local function showMessages(data)
     if not chatBox then return end
 
@@ -185,13 +185,14 @@ local function showMessages(data)
         return (a.time or 0) < (b.time or 0)
     end)
 
+    -- Detectar si estamos cerca del final ANTES de agregar mensajes
     local estoyAlFinal = primeraVez
     
     if not primeraVez and chatBox.AbsoluteCanvasSize.Y > 0 then
         local posicionActual = chatBox.CanvasPosition.Y
         local alturaVentana = chatBox.AbsoluteWindowSize.Y
         local alturaTotal = chatBox.AbsoluteCanvasSize.Y
-        estoyAlFinal = (posicionActual + alturaVentana) >= (alturaTotal - 20)
+        estoyAlFinal = (posicionActual + alturaVentana) >= (alturaTotal - 50) -- Aumentado margen
     end
 
     for index, msg in ipairs(mensajes) do
@@ -246,7 +247,7 @@ local function showMessages(data)
             continue
         end
 
-        -- 📱 CONTENEDOR ADAPTATIVO SEGÚN EL TEXTO (mantiene estilo OWNER dorado)
+        -- 📱 CONTENEDOR ADAPTATIVO SEGÚN EL TEXTO
         local baseHeight = isMobile and 65 or 55
         local avatarSize = isMobile and 40 or 50
 
@@ -344,7 +345,7 @@ local function showMessages(data)
         usernameLabel.ZIndex = 4
         usernameLabel.Parent = messageFrame
 
-        -- 🟨 TAG DORADO DE OWNER (restaurado)
+        -- 🟨 TAG DORADO DE OWNER
         if ChatScripters[username] then
             local tagLabel = Instance.new("TextLabel")
             tagLabel.Name = "Tag"
@@ -400,8 +401,6 @@ local function showMessages(data)
         messageText.ZIndex = 4
         messageText.Parent = messageFrame
 
-
-
         -- 📱 BOTÓN DE COPIAR ADAPTADO PARA MÓVIL
         local copyBtnSize = isMobile and 38 or 45
         local copyBtnPosX = isMobile and -43 or -50
@@ -449,6 +448,30 @@ local function showMessages(data)
                 copyBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
             end
         end)
+    end
+
+    -- ⚡ ESPERAR A QUE EL LAYOUT SE ACTUALICE COMPLETAMENTE
+    task.wait(0.1) -- Crucial para AutomaticSize
+    
+    -- 🎯 HACER SCROLL AL FINAL SI ESTÁBAMOS AL FINAL
+    if estoyAlFinal and chatBox then
+        task.spawn(function()
+            -- Esperar un frame adicional para garantizar actualización
+            task.wait()
+            chatBox.CanvasPosition = Vector2.new(0, chatBox.AbsoluteCanvasSize.Y)
+            
+            if primeraVez then
+                primeraVez = false
+            end
+        end)
+    end
+end
+
+
+
+
+
+
 
         container.Size = UDim2.new(1, -10, 0, 0)
         container.BackgroundTransparency = 1
@@ -907,67 +930,76 @@ function crearChatGUI()
         Color3.fromRGB(108, 121, 255)
     )
 
-    local function EnviarMensaje()
-        if enviandoMensaje then
-            sendButton.Text = "⏳ ESPERA"
-            return
-        end
+ local function EnviarMensaje()
+    if enviandoMensaje then
+        sendButton.Text = "⏳ ESPERA"
+        return
+    end
+    
+    local texto = textBox.Text:gsub("^%s*(.-)%s*$", "%1")
+    
+    if texto ~= "" and #texto <= 200 then
+        enviandoMensaje = true
+        sendButton.Text = "⏳"
         
-        local texto = textBox.Text:gsub("^%s*(.-)%s*$", "%1")
-        
-        if texto ~= "" and #texto <= 200 then
-            enviandoMensaje = true
-            sendButton.Text = "⏳"
-            
-            local originalSize = sendButton.Size
-            TweenService:Create(sendButton, TweenInfo.new(0.1), {
-                Size = UDim2.new(originalSize.X.Scale - 0.02, 0, originalSize.Y.Scale, 0)
-            }):Play()
-            task.wait(0.1)
-            TweenService:Create(sendButton, TweenInfo.new(0.1), {
-                Size = originalSize
-            }):Play()
+        local originalSize = sendButton.Size
+        TweenService:Create(sendButton, TweenInfo.new(0.1), {
+            Size = UDim2.new(originalSize.X.Scale - 0.02, 0, originalSize.Y.Scale, 0)
+        }):Play()
+        task.wait(0.1)
+        TweenService:Create(sendButton, TweenInfo.new(0.1), {
+            Size = originalSize
+        }):Play()
 
-            local data = {
-                username = player.Name,
-                text = texto,
-                time = os.time(),
-                game_name = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name or "Unknown",
-                place_id = game.PlaceId
-            }
-            local json = HttpService:JSONEncode(data)
+        local data = {
+            username = player.Name,
+            text = texto,
+            time = os.time(),
+            game_name = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name or "Unknown",
+            place_id = game.PlaceId
+        }
+        local json = HttpService:JSONEncode(data)
+        
+        local success = pcall(function()
+            request({
+                Url = firebaseURL,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = json
+            })
+        end)
+        
+        if success then
+            textBox.Text = ""
+            sendButton.Text = "✅"
             
-            local success = pcall(function()
-                request({
-                    Url = firebaseURL,
-                    Method = "POST",
-                    Headers = { ["Content-Type"] = "application/json" },
-                    Body = json
-                })
+            -- ⚡ FORZAR SCROLL AL FINAL DESPUÉS DE ENVIAR
+            task.spawn(function()
+                task.wait(0.3) -- Esperar a que el mensaje se agregue
+                if chatBox then
+                    chatBox.CanvasPosition = Vector2.new(0, chatBox.AbsoluteCanvasSize.Y + 1000)
+                end
             end)
             
-            if success then
-                textBox.Text = ""
-                sendButton.Text = "✅"
-                task.wait(0.5)
-            else
-                sendButton.Text = "❌"
-                task.wait(1)
-            end
-            
-            sendButton.Text = "📨 ENVIAR"
-            
+            task.wait(0.5)
+        else
+            sendButton.Text = "❌"
             task.wait(1)
-            enviandoMensaje = false
-            
-        elseif #texto > 200 then
-            textBox.PlaceholderText = "❌ Muy largo (máx 200)"
-            textBox.PlaceholderColor3 = Color3.fromRGB(255, 80, 80)
-            task.wait(2)
-            textBox.PlaceholderText = "💬 Escribe tu mensaje..."
-            textBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
         end
+        
+        sendButton.Text = "📨 ENVIAR"
+        
+        task.wait(1)
+        enviandoMensaje = false
+        
+    elseif #texto > 200 then
+        textBox.PlaceholderText = "❌ Muy largo (máx 200)"
+        textBox.PlaceholderColor3 = Color3.fromRGB(255, 80, 80)
+        task.wait(2)
+        textBox.PlaceholderText = "💬 Escribe tu mensaje..."
+        textBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
     end
+end
 
     sendButton.MouseButton1Click:Connect(EnviarMensaje)
     
@@ -1210,15 +1242,24 @@ task.spawn(function()
                     ultimoMensajeID = ultimo._id
                 end
 
-                if guiActivo then
-                    showMessages(decoded)
-                end
+if guiActivo then
+    showMessages(decoded)
+    
+    -- ⚡ ASEGURAR SCROLL AL FINAL DESPUÉS DE ACTUALIZAR
+    task.spawn(function()
+        task.wait(0.15)
+        if chatBox and chatBox.Parent then
+            local posicionActual = chatBox.CanvasPosition.Y
+            local alturaVentana = chatBox.AbsoluteWindowSize.Y
+            local alturaTotal = chatBox.AbsoluteCanvasSize.Y
+            
+            -- Si estamos cerca del final, mantener scroll abajo
+            if (posicionActual + alturaVentana) >= (alturaTotal - 100) then
+                chatBox.CanvasPosition = Vector2.new(0, alturaTotal)
             end
         end
-
-        task.wait(2.5)
-    end
-end)
+    end)
+end
 
 -- 🎮 SISTEMA DE TOGGLES (OPTIMIZADO Y NO BLOQUEANTE)
 task.spawn(function()
