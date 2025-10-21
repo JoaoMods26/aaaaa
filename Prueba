@@ -524,13 +524,27 @@ function crearChatGUI()
     frame.ZIndex = 1
     frame.Parent = gui
 
-    local screenSize = workspace.CurrentCamera.ViewportSize
-    if screenSize.X < 600 then
-        frame.Size = UDim2.new(0, math.min(screenSize.X * 0.9, 450), 0, 350)
-        local mobileX = math.clamp(posX, 0, screenSize.X * 0.9)
-        local mobileY = math.clamp(posY, 0, screenSize.Y * 0.7)
-        frame.Position = UDim2.new(0, mobileX, 0, mobileY)
+-- 🔧 Escalado adaptable para móvil/tablet
+local screenSize = workspace.CurrentCamera.ViewportSize
+if screenSize.X < 800 then
+    local scaleFactor = math.clamp(screenSize.X / 1280, 0.65, 0.9)
+    frame.Size = UDim2.new(0, 450 * scaleFactor, 0, 380 * scaleFactor)
+
+    local mobileX = math.clamp(posX, 10, screenSize.X - frame.AbsoluteSize.X - 10)
+    local mobileY = math.clamp(posY, 10, screenSize.Y - frame.AbsoluteSize.Y - 10)
+    frame.Position = UDim2.new(0, mobileX, 0, mobileY)
+
+    -- Escala general de textos e iconos
+    local function scaleTextObjects(guiObject)
+        for _, obj in ipairs(guiObject:GetDescendants()) do
+            if obj:IsA("TextLabel") or obj:IsA("TextButton") or obj:IsA("TextBox") then
+                obj.TextScaled = false
+                obj.TextSize = math.max(10, (obj.TextSize or 14) * scaleFactor)
+            end
+        end
     end
+    scaleTextObjects(frame)
+end
 
     local corner = Instance.new("UICorner", frame)
     corner.CornerRadius = UDim.new(0, 12)
