@@ -544,9 +544,12 @@ function crearChatGUI()
     -- 📱 DETECCIÓN DE MÓVIL
     isMobile = viewport.X < 800
 
-    -- 📱 DIMENSIONES ADAPTADAS
-    local frameWidth = isMobile and math.min(viewport.X * 0.95, 400) or 450
+   
+
+-- 📱 DIMENSIONES ADAPTADAS (más compactas en móvil)
+    local frameWidth = isMobile and math.min(viewport.X * 0.85, 360) or 450
     local frameHeight = isMobile and math.min(viewport.Y * 0.65, 500) or 380
+
 
     frame = Instance.new("Frame")
     frame.Name = "MainFrame"
@@ -837,6 +840,9 @@ function crearChatGUI()
     -- 📱 ÁREA DE MENSAJES ADAPTADA
     local chatBoxHeight = isMobile and 0.70 or 0.78
 
+    -- 📱 ÁREA DE MENSAJES ADAPTADA (sin scroll lateral)
+    local chatBoxHeight = isMobile and 0.70 or 0.78
+
     chatBox = Instance.new("ScrollingFrame")
     chatBox.Name = "ChatBox"
     chatBox.Size = UDim2.new(1, -16, chatBoxHeight, -10)
@@ -847,9 +853,11 @@ function crearChatGUI()
     chatBox.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
     chatBox.AutomaticCanvasSize = Enum.AutomaticSize.Y
     chatBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+    chatBox.ScrollingDirection = Enum.ScrollingDirection.Y -- ❗ Solo scroll vertical
     chatBox.ClipsDescendants = true
     chatBox.ZIndex = 2
     chatBox.Parent = frame
+
 
     local chatLayout = Instance.new("UIListLayout", chatBox)
     chatLayout.SortOrder = Enum.SortOrder.LayoutOrder
