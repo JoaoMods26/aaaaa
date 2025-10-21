@@ -246,7 +246,7 @@ local function showMessages(data)
             continue
         end
 
-        -- 📱 CONTENEDOR ADAPTATIVO SEGÚN EL TEXTO
+        -- 📱 CONTENEDOR ADAPTATIVO SEGÚN EL TEXTO (mantiene estilo OWNER dorado)
         local baseHeight = isMobile and 65 or 55
         local avatarSize = isMobile and 40 or 50
 
@@ -331,12 +331,12 @@ local function showMessages(data)
         messageFrame.AutomaticSize = Enum.AutomaticSize.Y
         messageFrame.Parent = container
 
-        -- USUARIO + JUEGO + TEXTO
+        -- USUARIO
         local usernameLabel = Instance.new("TextLabel")
         usernameLabel.Name = "Username"
-        usernameLabel.Size = UDim2.new(1, 0, 0, 16)
+        usernameLabel.Size = UDim2.new(0, 200, 0, 18)
         usernameLabel.BackgroundTransparency = 1
-        usernameLabel.Text = username .. (tag or "")
+        usernameLabel.Text = username
         usernameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
         usernameLabel.Font = Enum.Font.GothamBold
         usernameLabel.TextSize = isMobile and 11 or 14
@@ -344,18 +344,41 @@ local function showMessages(data)
         usernameLabel.ZIndex = 4
         usernameLabel.Parent = messageFrame
 
+        -- 🟨 TAG DORADO DE OWNER (restaurado)
+        if ChatScripters[username] then
+            local tagLabel = Instance.new("TextLabel")
+            tagLabel.Name = "Tag"
+            tagLabel.Size = UDim2.new(0, isMobile and 65 or 80, 0, isMobile and 15 or 18)
+            tagLabel.Position = UDim2.new(0, usernameLabel.TextBounds.X + 6, 0, 1)
+            tagLabel.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+            tagLabel.BackgroundTransparency = 0.2
+            tagLabel.Text = "👑 OWNER"
+            tagLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
+            tagLabel.Font = Enum.Font.GothamBold
+            tagLabel.TextSize = isMobile and 9 or 10
+            tagLabel.ZIndex = 4
+            tagLabel.Parent = messageFrame
+
+            local tagCorner = Instance.new("UICorner", tagLabel)
+            tagCorner.CornerRadius = UDim.new(0, 4)
+
+            local tagStroke = Instance.new("UIStroke", tagLabel)
+            tagStroke.Color = Color3.fromRGB(255, 230, 100)
+            tagStroke.Thickness = 1
+        end
+
+        -- NOMBRE DEL JUEGO
         local gameInfo = Instance.new("TextLabel")
         gameInfo.Name = "GameInfo"
         gameInfo.Size = UDim2.new(1, 0, 0, 14)
         gameInfo.BackgroundTransparency = 1
-        gameInfo.Position = UDim2.new(0, 0, 0, 18)
+        gameInfo.Position = UDim2.new(0, 0, 0, 20)
         gameInfo.Text = "🎮 " .. (msg.game_name or "Unknown Game")
         gameInfo.TextColor3 = Color3.fromRGB(100, 180, 255)
         gameInfo.Font = Enum.Font.GothamMedium
         gameInfo.TextSize = isMobile and 9 or 11
         gameInfo.TextXAlignment = Enum.TextXAlignment.Left
         gameInfo.ZIndex = 4
-        gameInfo.TextTruncate = Enum.TextTruncate.None
         gameInfo.TextWrapped = true
         gameInfo.AutomaticSize = Enum.AutomaticSize.Y
         gameInfo.Parent = messageFrame
@@ -376,6 +399,7 @@ local function showMessages(data)
         messageText.AutomaticSize = Enum.AutomaticSize.Y
         messageText.ZIndex = 4
         messageText.Parent = messageFrame
+
 
 
         -- 📱 BOTÓN DE COPIAR ADAPTADO PARA MÓVIL
