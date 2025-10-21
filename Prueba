@@ -450,48 +450,25 @@ local function showMessages(data)
             end
         end)
 
--- 🔧 Ajuste dinámico: dejamos que el contenedor autoajuste su altura
-container.BackgroundTransparency = 1
-container.AutomaticSize = Enum.AutomaticSize.Y
-
--- Solo tweenear la transparencia para la animación (no el tamaño)
-TweenService:Create(container, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-    BackgroundTransparency = 0.3
-}):Play()
-
--- Forzar actualización del CanvasSize del chatBox (si existe)
-task.defer(function()
-    if chatBox and chatBox.Parent then
-        -- Si existe un UIListLayout en chatBox, obtener su AbsoluteContentSize
-        local layout = chatBox:FindFirstChildOfClass("UIListLayout")
-        if layout then
-            chatBox.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 20)
-        else
-            -- fallback: usar AbsoluteCanvasSize si no existe layout (menos preciso)
-            chatBox.CanvasSize = UDim2.new(0, 0, 0, chatBox.AbsoluteCanvasSize.Y + 20)
-        end
+        container.Size = UDim2.new(1, -10, 0, 0)
+        container.BackgroundTransparency = 1
+        
+        TweenService:Create(container, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+            Size = UDim2.new(1, -10, 0, containerHeight),
+            BackgroundTransparency = 0.3
+        }):Play()
     end
-end)
-
 
     task.wait(0.05)
-if estoyAlFinal and chatBox then
-    -- esperar un poco a que el layout calcule la nueva altura
-    task.delay(0.08, function()
-        if chatBox and chatBox.Parent then
-            local layout = chatBox:FindFirstChildOfClass("UIListLayout")
-            if layout then
-                chatBox.CanvasPosition = Vector2.new(0, layout.AbsoluteContentSize.Y)
-            else
-                chatBox.CanvasPosition = Vector2.new(0, chatBox.CanvasSize.Y.Offset)
-            end
+    if estoyAlFinal and chatBox then
+        chatBox.CanvasPosition = Vector2.new(0, chatBox.AbsoluteCanvasSize.Y)
+        
+        if primeraVez then
+            primeraVez = false
         end
-    end)
-
-    if primeraVez then
-        primeraVez = false
     end
 end
+
 -- FUNCIÓN PRINCIPAL: CREAR GUI
 function crearChatGUI()
     if gui then 
@@ -816,38 +793,32 @@ function crearChatGUI()
     -- 📱 ÁREA DE MENSAJES ADAPTADA (sin scroll lateral)
     local chatBoxHeight = isMobile and 0.70 or 0.78
 
-chatBox = Instance.new("ScrollingFrame")
-chatBox.Name = "ChatBox"
-chatBox.Size = UDim2.new(1, -16, chatBoxHeight, -10)
-chatBox.Position = UDim2.new(0, 8, 0, 8)
-chatBox.BackgroundTransparency = 1
-chatBox.BorderSizePixel = 0
-chatBox.ScrollBarThickness = isMobile and 5 or 7
-chatBox.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
--- Controlamos CanvasSize manualmente vía UIListLayout
-chatBox.AutomaticCanvasSize = Enum.AutomaticSize.None
-chatBox.CanvasSize = UDim2.new(0, 0, 0, 0)
-chatBox.ScrollingDirection = Enum.ScrollingDirection.Y
-chatBox.ClipsDescendants = true
-chatBox.ZIndex = 2
-chatBox.Parent = frame
+    chatBox = Instance.new("ScrollingFrame")
+    chatBox.Name = "ChatBox"
+    chatBox.Size = UDim2.new(1, -16, chatBoxHeight, -10)
+    chatBox.Position = UDim2.new(0, 8, 0, 8)
+    chatBox.BackgroundTransparency = 1
+    chatBox.BorderSizePixel = 0
+    chatBox.ScrollBarThickness = isMobile and 4 or 6
+    chatBox.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
+    chatBox.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    chatBox.CanvasSize = UDim2.new(0, 0, 0, 0)
+    chatBox.ScrollingDirection = Enum.ScrollingDirection.Y -- ❗ Solo scroll vertical
+    chatBox.ClipsDescendants = true
+    chatBox.ZIndex = 2
+    chatBox.Parent = frame
 
-local chatLayout = Instance.new("UIListLayout", chatBox)
-chatLayout.SortOrder = Enum.SortOrder.LayoutOrder
-chatLayout.Padding = UDim.new(0, isMobile and 8 or 10)
-chatLayout.FillDirection = Enum.FillDirection.Vertical
 
--- Actualizar CanvasSize automáticamente cuando cambie el contenido
-chatLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-    chatBox.CanvasSize = UDim2.new(0, 0, 0, chatLayout.AbsoluteContentSize.Y + 20)
-end)
+    local chatLayout = Instance.new("UIListLayout", chatBox)
+    chatLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    chatLayout.Padding = UDim.new(0, isMobile and 8 or 10)
+    chatLayout.FillDirection = Enum.FillDirection.Vertical
 
-local chatPadding = Instance.new("UIPadding", chatBox)
-chatPadding.PaddingLeft = UDim.new(0, 5)
-chatPadding.PaddingRight = UDim.new(0, 5)
-chatPadding.PaddingTop = UDim.new(0, 5)
-chatPadding.PaddingBottom = UDim.new(0, 5)
-
+    local chatPadding = Instance.new("UIPadding", chatBox)
+    chatPadding.PaddingLeft = UDim.new(0, 5)
+    chatPadding.PaddingRight = UDim.new(0, 5)
+    chatPadding.PaddingTop = UDim.new(0, 5)
+    chatPadding.PaddingBottom = UDim.new(0, 5)
 
     -- 📝 CONTENEDOR DE INPUT (idéntico en PC, corregido en móvil)
     local inputHeight = isMobile and 0.12 or 0.12
