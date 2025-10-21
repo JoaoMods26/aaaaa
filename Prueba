@@ -1,5 +1,5 @@
 -- JXNULL CHAT GLOBAL
--- Optimización completa para móvil y PC
+-- Optimización completa para móvil y PC - SCROLL CORREGIDO
 
 -- Sistema de carpetas
 if makefolder and not isfolder("JXNULL_CONFIGS") then
@@ -34,7 +34,7 @@ local mensajesMostrados = {}
 local enviandoMensaje = false
 local primeraVez = true
 local escuchaActiva = false
-local isMobile = false -- Detectar si es móvil
+local isMobile = false
 
 -- URL de Firebase
 local firebaseURL = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Chat.json"
@@ -171,7 +171,23 @@ local function GuardarConfiguracion(datos)
     end
 end
 
--- FUNCIÓN: MOSTRAR MENSAJES (OPTIMIZADO PARA MÓVIL)
+-- 📏 FUNCIÓN PARA CALCULAR ALTURA DE TEXTO
+local function CalcularAlturaTexto(texto, anchoDisponible, tamanoTexto, fuente)
+    local tempLabel = Instance.new("TextLabel")
+    tempLabel.Text = texto
+    tempLabel.TextSize = tamanoTexto
+    tempLabel.Font = fuente
+    tempLabel.TextWrapped = true
+    tempLabel.Size = UDim2.new(0, anchoDisponible, 0, 1000)
+    tempLabel.Parent = game:GetService("CoreGui")
+    
+    local altura = tempLabel.TextBounds.Y
+    tempLabel:Destroy()
+    
+    return math.max(altura, 20)
+end
+
+-- FUNCIÓN: MOSTRAR MENSAJES (CORREGIDO PARA SCROLL)
 local function showMessages(data)
     if not chatBox then return end
 
@@ -246,14 +262,23 @@ local function showMessages(data)
             continue
         end
 
-        -- 📱 CONTENEDOR ADAPTATIVO SEGÚN EL TEXTO (mantiene estilo OWNER dorado)
-        local baseHeight = isMobile and 65 or 55
+        -- 📐 CALCULAR DIMENSIONES BASADAS EN CONTENIDO
         local avatarSize = isMobile and 40 or 50
+        local anchoDisponible = chatBox.AbsoluteSize.X - avatarSize - 70
+        
+        local alturaTexto = CalcularAlturaTexto(text, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
+        local alturaGameInfo = CalcularAlturaTexto("🎮 " .. (msg.game_name or "Unknown Game"), anchoDisponible, isMobile and 9 or 11, Enum.Font.GothamMedium)
+        
+        -- Altura total del contenedor: avatar + padding + username + gameInfo + texto + márgenes
+        local alturaTotal = math.max(
+            avatarSize + 10,  -- Altura mínima basada en avatar
+            20 + alturaGameInfo + alturaTexto + 25  -- username + gameInfo + texto + paddings
+        )
 
+        -- 📦 CONTENEDOR CON TAMAÑO FIJO CALCULADO
         local container = Instance.new("Frame")
         container.Name = "MessageContainer_" .. messageId
-        container.AutomaticSize = Enum.AutomaticSize.Y
-        container.Size = UDim2.new(1, -10, 0, baseHeight)
+        container.Size = UDim2.new(1, -10, 0, alturaTotal)
         container.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
         container.BackgroundTransparency = 0.3
         container.BorderSizePixel = 0
@@ -294,6 +319,7 @@ local function showMessages(data)
         end)
         if success then userId = result end
 
+        -- AVATAR
         local avatarContainer = Instance.new("Frame")
         avatarContainer.Name = "AvatarContainer"
         avatarContainer.Size = UDim2.new(0, avatarSize, 0, avatarSize)
@@ -328,7 +354,6 @@ local function showMessages(data)
         messageFrame.Position = UDim2.new(0, avatarSize + 10, 0, 5)
         messageFrame.BackgroundTransparency = 1
         messageFrame.ZIndex = 3
-        messageFrame.AutomaticSize = Enum.AutomaticSize.Y
         messageFrame.Parent = container
 
         -- USUARIO
@@ -344,7 +369,7 @@ local function showMessages(data)
         usernameLabel.ZIndex = 4
         usernameLabel.Parent = messageFrame
 
-        -- 🟨 TAG DORADO DE OWNER (restaurado)
+        -- TAG DORADO DE OWNER
         if ChatScripters[username] then
             local tagLabel = Instance.new("TextLabel")
             tagLabel.Name = "Tag"
@@ -370,7 +395,7 @@ local function showMessages(data)
         -- NOMBRE DEL JUEGO
         local gameInfo = Instance.new("TextLabel")
         gameInfo.Name = "GameInfo"
-        gameInfo.Size = UDim2.new(1, 0, 0, 14)
+        gameInfo.Size = UDim2.new(1, -50, 0, alturaGameInfo + 4)
         gameInfo.BackgroundTransparency = 1
         gameInfo.Position = UDim2.new(0, 0, 0, 20)
         gameInfo.Text = "🎮 " .. (msg.game_name or "Unknown Game")
@@ -378,16 +403,16 @@ local function showMessages(data)
         gameInfo.Font = Enum.Font.GothamMedium
         gameInfo.TextSize = isMobile and 9 or 11
         gameInfo.TextXAlignment = Enum.TextXAlignment.Left
+        gameInfo.TextYAlignment = Enum.TextYAlignment.Top
         gameInfo.ZIndex = 4
         gameInfo.TextWrapped = true
-        gameInfo.AutomaticSize = Enum.AutomaticSize.Y
         gameInfo.Parent = messageFrame
 
-        -- TEXTO DEL MENSAJE (autoajustado)
+        -- TEXTO DEL MENSAJE
         local messageText = Instance.new("TextLabel")
         messageText.Name = "MessageText"
-        messageText.Size = UDim2.new(1, -5, 0, 0)
-        messageText.Position = UDim2.new(0, 0, 0, 36)
+        messageText.Size = UDim2.new(1, -50, 0, alturaTexto + 4)
+        messageText.Position = UDim2.new(0, 0, 0, 20 + alturaGameInfo + 6)
         messageText.BackgroundTransparency = 1
         messageText.Text = text
         messageText.TextColor3 = Color3.fromRGB(230, 230, 230)
@@ -396,13 +421,10 @@ local function showMessages(data)
         messageText.TextXAlignment = Enum.TextXAlignment.Left
         messageText.TextYAlignment = Enum.TextYAlignment.Top
         messageText.TextWrapped = true
-        messageText.AutomaticSize = Enum.AutomaticSize.Y
         messageText.ZIndex = 4
         messageText.Parent = messageFrame
 
-
-
-        -- 📱 BOTÓN DE COPIAR ADAPTADO PARA MÓVIL
+        -- BOTÓN DE COPIAR
         local copyBtnSize = isMobile and 38 or 45
         local copyBtnPosX = isMobile and -43 or -50
 
@@ -450,16 +472,18 @@ local function showMessages(data)
             end
         end)
 
-        container.Size = UDim2.new(1, -10, 0, 0)
+        -- ANIMACIÓN DE ENTRADA
         container.BackgroundTransparency = 1
+        container.Size = UDim2.new(1, -10, 0, 0)
         
         TweenService:Create(container, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
-            Size = UDim2.new(1, -10, 0, containerHeight),
+            Size = UDim2.new(1, -10, 0, alturaTotal),
             BackgroundTransparency = 0.3
         }):Play()
     end
 
-    task.wait(0.05)
+    -- ✅ SCROLL AUTOMÁTICO CORREGIDO
+    task.wait(0.1)
     if estoyAlFinal and chatBox then
         chatBox.CanvasPosition = Vector2.new(0, chatBox.AbsoluteCanvasSize.Y)
         
@@ -490,16 +514,10 @@ function crearChatGUI()
     local posX = (config.PosicionX or 0.05) * viewport.X
     local posY = (config.PosicionY or 0.3) * viewport.Y
 
-    -- 📱 DETECCIÓN DE MÓVIL
     isMobile = viewport.X < 800
 
-   
-
-    -- 📱 DIMENSIONES ADAPTADAS (solo más angosto en móvil)
     local frameWidth = isMobile and math.min(viewport.X * 0.85, 360) or 450
     local frameHeight = isMobile and math.min(viewport.Y * 0.65, 500) or 380
-
-
 
     frame = Instance.new("Frame")
     frame.Name = "MainFrame"
@@ -511,7 +529,6 @@ function crearChatGUI()
     frame.ZIndex = 1
     frame.Parent = gui
 
-    -- 📱 AJUSTE DE POSICIÓN PARA MÓVIL
     if isMobile then
         local mobileX = math.clamp(posX, 10, viewport.X - frameWidth - 10)
         local mobileY = math.clamp(posY, 10, viewport.Y - frameHeight - 10)
@@ -547,7 +564,6 @@ function crearChatGUI()
 
     frame.BackgroundTransparency = config.Transparency or 0
 
-    -- 📱 BARRA DE TÍTULO ADAPTADA
     local titleBarHeight = isMobile and 35 or 40
 
     local titleBar = Instance.new("Frame")
@@ -595,7 +611,6 @@ function crearChatGUI()
         end
     end)
 
-    -- 📱 BOTONES REORGANIZADOS PARA MÓVIL (SIN SUPERPOSICIÓN)
     local btnSize = isMobile and 28 or 32
     local btnSpacing = isMobile and 34 or 38
 
@@ -683,7 +698,6 @@ function crearChatGUI()
         end)
     end
 
-    -- 📱 BOTONES DE DISCORD REPOSICIONADOS (SIN SUPERPOSICIÓN)
     local discordStartPos = isMobile and 135 or 220
     
     local discordBtn = Instance.new("ImageButton")
@@ -787,10 +801,7 @@ function crearChatGUI()
 
     UserInputService.InputChanged:Connect(updateInput)
 
-    -- 📱 ÁREA DE MENSAJES ADAPTADA
-    local chatBoxHeight = isMobile and 0.70 or 0.78
-
-    -- 📱 ÁREA DE MENSAJES ADAPTADA (sin scroll lateral)
+    -- ÁREA DE MENSAJES CON SCROLL VERTICAL
     local chatBoxHeight = isMobile and 0.70 or 0.78
 
     chatBox = Instance.new("ScrollingFrame")
@@ -803,11 +814,10 @@ function crearChatGUI()
     chatBox.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
     chatBox.AutomaticCanvasSize = Enum.AutomaticSize.Y
     chatBox.CanvasSize = UDim2.new(0, 0, 0, 0)
-    chatBox.ScrollingDirection = Enum.ScrollingDirection.Y -- ❗ Solo scroll vertical
+    chatBox.ScrollingDirection = Enum.ScrollingDirection.Y
     chatBox.ClipsDescendants = true
     chatBox.ZIndex = 2
     chatBox.Parent = frame
-
 
     local chatLayout = Instance.new("UIListLayout", chatBox)
     chatLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -820,7 +830,7 @@ function crearChatGUI()
     chatPadding.PaddingTop = UDim.new(0, 5)
     chatPadding.PaddingBottom = UDim.new(0, 5)
 
-    -- 📝 CONTENEDOR DE INPUT (idéntico en PC, corregido en móvil)
+    -- CONTENEDOR DE INPUT
     local inputHeight = isMobile and 0.12 or 0.12
     local inputPosY = isMobile and 0.86 or 0.68
 
@@ -888,8 +898,6 @@ function crearChatGUI()
     sendButton.BorderSizePixel = 0
     sendButton.ZIndex = 3
     sendButton.Parent = inputContainer
-
-
 
     local sendCorner = Instance.new("UICorner", sendButton)
     sendCorner.CornerRadius = UDim.new(0, 6)
@@ -977,7 +985,7 @@ function crearChatGUI()
         end
     end)
 
-    -- 🎛️ PANEL DE CONFIGURACIÓN ADAPTADO
+    -- PANEL DE CONFIGURACIÓN
     local settingsPanelWidth = isMobile and 220 or 240
     local settingsPanelHeight = isMobile and 200 or 220
 
@@ -1105,8 +1113,8 @@ function crearChatGUI()
         local newConfig = {
             Transparency = t or 0,
             ImageId = id and ("rbxassetid://" .. id) or "",
-            PosicionX = frame.Position.X.Scale,
-            PosicionY = frame.Position.Y.Scale
+            PosicionX = frame.Position.X.Offset / viewport.X,
+            PosicionY = frame.Position.Y.Offset / viewport.Y
         }
         GuardarConfiguracion(newConfig)
 
@@ -1126,7 +1134,7 @@ function crearChatGUI()
         end
     end)
 
-    --  CARGAR MENSAJES INMEDIATAMENTE AL ABRIR
+    -- CARGAR MENSAJES INICIALES
     task.spawn(function()
         local success, response = pcall(function()
             return request({
@@ -1147,7 +1155,7 @@ function crearChatGUI()
     end)
 end
 
--- SISTEMA DE ESCUCHA EN TIEMPO REAL (INDEPENDIENTE Y OPTIMIZADO)
+-- SISTEMA DE ESCUCHA EN TIEMPO REAL
 task.spawn(function()
     while true do
         if not escuchaActiva then
@@ -1220,7 +1228,7 @@ task.spawn(function()
     end
 end)
 
--- 🎮 SISTEMA DE TOGGLES (OPTIMIZADO Y NO BLOQUEANTE)
+-- SISTEMA DE TOGGLES
 task.spawn(function()
     local intentos = 0
     while not _G.MainTab and intentos < 50 do
@@ -1253,7 +1261,7 @@ task.spawn(function()
             Callback = function(state)
                 if state then
                     if guiActivo and gui and gui.Parent then
-                        warn(" Chat global ya está activo.")
+                        warn("⚠️ Chat global ya está activo.")
                         return
                     end
 
@@ -1302,14 +1310,13 @@ task.spawn(function()
                     gui, chatBox, frame, sendButton, textBox, settingsFrame, bgImage = nil, nil, nil, nil, nil, nil, nil
                     mensajesMostrados, ultimoMensajeID = {}, nil
                     primeraVez = true
-                    
                 end
             end
         })
 
     else
-        warn(" _G.MainTab no encontrado después de 5 segundos.")
-        warn(" Puedes activar el chat manualmente con: crearChatGUI()")
+        warn("⚠️ _G.MainTab no encontrado después de 5 segundos.")
+        warn("💡 Puedes activar el chat manualmente con: crearChatGUI()")
     end
 end)
 
