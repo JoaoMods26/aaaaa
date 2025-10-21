@@ -369,27 +369,125 @@ local function showMessages(data)
         usernameLabel.ZIndex = 4
         usernameLabel.Parent = messageFrame
 
-        -- TAG DORADO DE OWNER
+        -- 👑 TAG PREMIUM DE OWNER CON EFECTOS
         if ChatScripters[username] then
+            local tagContainer = Instance.new("Frame")
+            tagContainer.Name = "TagContainer"
+            tagContainer.Size = UDim2.new(0, isMobile and 70 or 85, 0, isMobile and 18 or 20)
+            tagContainer.Position = UDim2.new(0, usernameLabel.TextBounds.X + 8, 0, 0)
+            tagContainer.BackgroundTransparency = 1
+            tagContainer.ZIndex = 4
+            tagContainer.Parent = messageFrame
+
+            -- Fondo con gradiente dorado
+            local tagBg = Instance.new("Frame")
+            tagBg.Name = "TagBackground"
+            tagBg.Size = UDim2.new(1, 0, 1, 0)
+            tagBg.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
+            tagBg.BorderSizePixel = 0
+            tagBg.ZIndex = 5
+            tagBg.Parent = tagContainer
+
+            local tagCorner = Instance.new("UICorner", tagBg)
+            tagCorner.CornerRadius = UDim.new(0, isMobile and 6 or 8)
+
+            -- Gradiente dorado premium
+            local tagGradient = Instance.new("UIGradient", tagBg)
+            tagGradient.Color = ColorSequence.new{
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 215, 0)),
+                ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 235, 100)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 195, 0))
+            }
+            tagGradient.Rotation = 45
+
+            -- Animación del gradiente
+            task.spawn(function()
+                while tagGradient and tagGradient.Parent do
+                    for i = 0, 360, 3 do
+                        if tagGradient and tagGradient.Parent then
+                            tagGradient.Rotation = i
+                        else
+                            break
+                        end
+                        task.wait(0.05)
+                    end
+                end
+            end)
+
+            -- Borde brillante
+            local tagStroke = Instance.new("UIStroke", tagBg)
+            tagStroke.Color = Color3.fromRGB(255, 255, 200)
+            tagStroke.Thickness = 1.5
+            tagStroke.Transparency = 0
+
+            -- Animación de brillo en el borde
+            task.spawn(function()
+                while tagStroke and tagStroke.Parent do
+                    TweenService:Create(tagStroke, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                        Transparency = 0.3
+                    }):Play()
+                    task.wait(1)
+                    TweenService:Create(tagStroke, TweenInfo.new(1, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+                        Transparency = 0
+                    }):Play()
+                    task.wait(1)
+                end
+            end)
+
+            -- Efecto de brillo interno
+            local shine = Instance.new("Frame")
+            shine.Name = "Shine"
+            shine.Size = UDim2.new(0.3, 0, 1, 0)
+            shine.Position = UDim2.new(-0.3, 0, 0, 0)
+            shine.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+            shine.BackgroundTransparency = 0.5
+            shine.BorderSizePixel = 0
+            shine.ZIndex = 6
+            shine.Parent = tagBg
+
+            local shineCorner = Instance.new("UICorner", shine)
+            shineCorner.CornerRadius = UDim.new(0, isMobile and 6 or 8)
+
+            -- Animación de brillo deslizante
+            task.spawn(function()
+                while shine and shine.Parent do
+                    shine.Position = UDim2.new(-0.3, 0, 0, 0)
+                    TweenService:Create(shine, TweenInfo.new(2, Enum.EasingStyle.Sine), {
+                        Position = UDim2.new(1, 0, 0, 0)
+                    }):Play()
+                    task.wait(3)
+                end
+            end)
+
+            -- Texto del tag
             local tagLabel = Instance.new("TextLabel")
-            tagLabel.Name = "Tag"
-            tagLabel.Size = UDim2.new(0, isMobile and 65 or 80, 0, isMobile and 15 or 18)
-            tagLabel.Position = UDim2.new(0, usernameLabel.TextBounds.X + 6, 0, 1)
-            tagLabel.BackgroundColor3 = Color3.fromRGB(255, 215, 0)
-            tagLabel.BackgroundTransparency = 0.2
+            tagLabel.Name = "TagText"
+            tagLabel.Size = UDim2.new(1, 0, 1, 0)
+            tagLabel.BackgroundTransparency = 1
             tagLabel.Text = "👑 OWNER"
             tagLabel.TextColor3 = Color3.fromRGB(0, 0, 0)
             tagLabel.Font = Enum.Font.GothamBold
             tagLabel.TextSize = isMobile and 9 or 10
-            tagLabel.ZIndex = 4
-            tagLabel.Parent = messageFrame
+            tagLabel.ZIndex = 7
+            tagLabel.Parent = tagContainer
 
-            local tagCorner = Instance.new("UICorner", tagLabel)
-            tagCorner.CornerRadius = UDim.new(0, 4)
+            -- Sombra del texto para mayor contraste
+            local tagShadow = Instance.new("UIStroke", tagLabel)
+            tagShadow.Color = Color3.fromRGB(180, 140, 0)
+            tagShadow.Thickness = 0.5
 
-            local tagStroke = Instance.new("UIStroke", tagLabel)
-            tagStroke.Color = Color3.fromRGB(255, 230, 100)
-            tagStroke.Thickness = 1
+            -- Efecto hover en el tag
+            tagContainer.MouseEnter:Connect(function()
+                TweenService:Create(tagContainer, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
+                    Size = UDim2.new(0, (isMobile and 70 or 85) * 1.1, 0, (isMobile and 18 or 20) * 1.1)
+                }):Play()
+            end)
+
+            tagContainer.MouseLeave:Connect(function()
+                TweenService:Create(tagContainer, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
+                    Size = UDim2.new(0, isMobile and 70 or 85, 0, isMobile and 18 or 20)
+                }):Play()
+            end)
         end
 
         -- NOMBRE DEL JUEGO
@@ -830,7 +928,7 @@ function crearChatGUI()
     chatPadding.PaddingTop = UDim.new(0, 5)
     chatPadding.PaddingBottom = UDim.new(0, 5)
 
-    -- CONTENEDOR DE INPUT
+    -- CONTENEDOR DE INPUT CON SCROLL
     local inputHeight = isMobile and 0.12 or 0.12
     local inputPosY = isMobile and 0.86 or 0.68
 
@@ -840,7 +938,7 @@ function crearChatGUI()
     inputContainer.Position = isMobile and UDim2.new(0, 8, inputPosY, 0) or UDim2.new(0, 8, inputPosY, 50)
     inputContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     inputContainer.BorderSizePixel = 0
-    inputContainer.ClipsDescendants = true
+    inputContainer.ClipsDescendants = false
     inputContainer.ZIndex = 2
     inputContainer.Parent = frame
 
@@ -852,10 +950,25 @@ function crearChatGUI()
     inputStroke.Thickness = 1.5
     inputStroke.Transparency = 0.7
 
+    -- ScrollingFrame para el TextBox
+    local textBoxScroll = Instance.new("ScrollingFrame")
+    textBoxScroll.Name = "TextBoxScroll"
+    textBoxScroll.Size = UDim2.new(0.65, -10, 1, -10)
+    textBoxScroll.Position = UDim2.new(0, 8, 0, 5)
+    textBoxScroll.BackgroundTransparency = 1
+    textBoxScroll.BorderSizePixel = 0
+    textBoxScroll.ScrollBarThickness = 3
+    textBoxScroll.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
+    textBoxScroll.ScrollingDirection = Enum.ScrollingDirection.X
+    textBoxScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    textBoxScroll.AutomaticCanvasSize = Enum.AutomaticSize.X
+    textBoxScroll.ZIndex = 3
+    textBoxScroll.Parent = inputContainer
+
     textBox = Instance.new("TextBox")
     textBox.Name = "MessageInput"
-    textBox.Size = UDim2.new(0.65, -10, 1, -10)
-    textBox.Position = UDim2.new(0, 8, 0, 5)
+    textBox.Size = UDim2.new(0, 1000, 1, 0)
+    textBox.Position = UDim2.new(0, 0, 0, 0)
     textBox.BackgroundTransparency = 1
     textBox.Text = ""
     textBox.PlaceholderText = "💬 Escribe tu mensaje..."
@@ -867,10 +980,19 @@ function crearChatGUI()
     textBox.TextYAlignment = Enum.TextYAlignment.Center
     textBox.ClearTextOnFocus = false
     textBox.MultiLine = false
-    textBox.TextWrapped = true
+    textBox.TextWrapped = false
     textBox.TextScaled = false
-    textBox.ZIndex = 3
-    textBox.Parent = inputContainer
+    textBox.ZIndex = 4
+    textBox.Parent = textBoxScroll
+
+    -- Auto-ajustar el ancho del TextBox según el contenido
+    textBox:GetPropertyChangedSignal("Text"):Connect(function()
+        local textBounds = textBox.TextBounds.X
+        textBox.Size = UDim2.new(0, math.max(textBounds + 20, textBoxScroll.AbsoluteSize.X), 1, 0)
+        
+        -- Auto-scroll al final cuando escribes
+        textBoxScroll.CanvasPosition = Vector2.new(textBoxScroll.AbsoluteCanvasSize.X, 0)
+    end)
 
     textBox.Focused:Connect(function()
         TweenService:Create(inputStroke, TweenInfo.new(0.2), {
