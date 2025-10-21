@@ -546,9 +546,10 @@ function crearChatGUI()
 
    
 
--- 📱 DIMENSIONES ADAPTADAS (más compactas en móvil)
+    -- 📱 DIMENSIONES ADAPTADAS (solo más angosto en móvil)
     local frameWidth = isMobile and math.min(viewport.X * 0.85, 360) or 450
     local frameHeight = isMobile and math.min(viewport.Y * 0.65, 500) or 380
+
 
 
     frame = Instance.new("Frame")
@@ -870,14 +871,14 @@ function crearChatGUI()
     chatPadding.PaddingTop = UDim.new(0, 5)
     chatPadding.PaddingBottom = UDim.new(0, 5)
 
-    -- 📝 CONTENEDOR DE INPUT COMPACTO (OPTIMIZADO PARA MÓVIL)
+    -- 📝 CONTENEDOR DE INPUT (idéntico en PC, corregido en móvil)
     local inputHeight = isMobile and 0.12 or 0.12
     local inputPosY = isMobile and 0.86 or 0.68
 
     local inputContainer = Instance.new("Frame")
     inputContainer.Name = "InputContainer"
     inputContainer.Size = UDim2.new(1, -16, inputHeight, 0)
-    inputContainer.Position = UDim2.new(0, 8, inputPosY, 0)
+    inputContainer.Position = isMobile and UDim2.new(0, 8, inputPosY, 0) or UDim2.new(0, 8, inputPosY, 50)
     inputContainer.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
     inputContainer.BorderSizePixel = 0
     inputContainer.ClipsDescendants = true
@@ -938,6 +939,7 @@ function crearChatGUI()
     sendButton.BorderSizePixel = 0
     sendButton.ZIndex = 3
     sendButton.Parent = inputContainer
+
 
 
     local sendCorner = Instance.new("UICorner", sendButton)
