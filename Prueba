@@ -1,12 +1,12 @@
--- JXNULL CHAT GLOBAL CON SISTEMA DE RESPUESTAS
--- Optimización completa para móvil y PC - SCROLL CORREGIDO + RESPUESTAS
+-- JXNULL CHAT GLOBAL - VERSIÓN COMPLETA
+-- Sistema de stickers + Botón minimizar + Sistema de respuestas
 
 -- Sistema de carpetas
 if makefolder and not isfolder("JXNULL_CONFIGS") then
     makefolder("JXNULL_CONFIGS")
 end
 
---  LISTA DE ADMINISTRADORES
+-- LISTA DE ADMINISTRADORES
 local ChatScripters = {
     ["joao_modsF"] = true,
     ["joao_mods26"] = true,
@@ -35,17 +35,155 @@ local enviandoMensaje = false
 local primeraVez = true
 local escuchaActiva = false
 local isMobile = false
+local isMinimized = false
 
--- 🆕 VARIABLES PARA SISTEMA DE RESPUESTAS
-local mensajeRespondiendo = nil -- {username, text, messageId}
-local misRespuestasPendientes = {} -- Para trackear respuestas que envié
+-- Variables para stickers
+local stickerPanel = nil
+local stickerButton = nil
+local stickersGuardados = {}
 
--- URL de Firebase
+-- Variables para respuestas
+local mensajeRespondiendo = nil
+local misRespuestasPendientes = {}
+
+-- URLs de Firebase
 local firebaseURL = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Chat.json"
 local respuestasURL = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Respuestas.json"
 local request = (syn and syn.request) or http_request or (fluxus and fluxus.request) or request
 
---  FUNCIONES DE COMANDOS ESPECIALES
+-- 🎨 FUNCIONES DE STICKERS
+local function CargarStickers()
+    if not isfile or not isfile("JXNULL_CONFIGS/Stickers.json") then
+        return {}
+    end
+    
+    local contenido = readfile("JXNULL_CONFIGS/Stickers.json")
+    if contenido and contenido ~= "" then
+        local success, datos = pcall(function()
+            return HttpService:JSONDecode(contenido)
+        end)
+        
+        if success and typeof(datos) == "table" then
+            return datos
+        end
+    end
+    
+    return {}
+end
+
+local function GuardarStickers(stickers)
+    if writefile then
+        local json = HttpService:JSONEncode(stickers)
+        writefile("JXNULL_CONFIGS/Stickers.json", json)
+    end
+end
+
+local function DetectarURLImagen(texto)
+    texto = texto:gsub("^%s*(.-)%s*$", "%1")
+    
+    -- 1. Solo números (ID de Roblox) - SOLO si es la única palabra
+    if texto:match("^%d+$") and #texto >= 5 then
+        return "rbxassetid://" .. texto
+    end
+    
+    -- 2. rbxassetid:// directo
+    if texto:find("rbxassetid://") then
+        local id = texto:match("rbxassetid://(%d+)")
+        if id then return "rbxassetid://" .. id end
+    end
+    
+    -- 3-5. URLs de Roblox
+    if texto:find("roblox%.com/asset/") then
+        local id = texto:match("/asset/(%d+)")
+        if id then return "rbxassetid://" .. id end
+    end
+    
+    if texto:find("roblox%.com/asset/%?id=") then
+        local id = texto:match("id=(%d+)")
+        if id then return "rbxassetid://" .. id end
+    end
+    
+    if texto:find("roblox%.com/library/") then
+        local id = texto:match("/library/(%d+)")
+        if id then return "rbxassetid://" .. id end
+    end
+    
+    -- 6-9. URLs externas
+    if texto:find("cdn%.discordapp%.com") or texto:find("media%.discordapp%.net") then
+        -- Extraer URL completa de Discord
+        local url = texto:match("https?://[%w%.%-_]+%.discordapp%.%a+/[%w%.%-_/]+")
+        if url then return url end
+    end
+    
+    if texto:find("%.rbxcdn%.com") then
+        local url = texto:match("https?://[%w%.%-_]+%.rbxcdn%.com/[%w%.%-_/]+")
+        if url then return url end
+    end
+    
+    if texto:find("%.png") or texto:find("%.jpg") or texto:find("%.jpeg") or 
+       texto:find("%.gif") or texto:find("%.webp") then
+        local url = texto:match("https?://[%S]+%.%a+")
+        if url then return url end
+    end
+    
+    if texto:find("i%.ibb%.co") or texto:find("imgur%.com") then
+        local url = texto:match("https?://[%S]+")
+        if url then return url end
+    end
+    
+    return nil
+end
+
+local function ExtraerTextoSinURL(texto, urlImagen)
+    if not urlImagen then return texto end
+    
+    -- Remover la URL del texto
+    local textoLimpio = texto:gsub(urlImagen, "")
+    
+    -- Si era un ID numérico solo, remover ese patrón
+    if urlImagen:find("rbxassetid://") then
+        local id = urlImagen:match("rbxassetid://(%d+)")
+        if id then
+            textoLimpio = textoLimpio:gsub("rbxassetid://" .. id, "")
+            textoLimpio = textoLimpio:gsub(id, "")
+        end
+    end
+    
+    -- Limpiar espacios extra
+    textoLimpio = textoLimpio:gsub("^%s*(.-)%s*$", "%1")
+    
+    return textoLimpio
+end
+
+local function AgregarSticker(url, nombre)
+    nombre = nombre or ("Sticker_" .. #stickersGuardados + 1)
+    
+    for _, sticker in ipairs(stickersGuardados) do
+        if sticker.url == url then
+            return false, "Ya existe"
+        end
+    end
+    
+    table.insert(stickersGuardados, {
+        url = url,
+        nombre = nombre,
+        timestamp = os.time()
+    })
+    
+    GuardarStickers(stickersGuardados)
+    return true, "Guardado"
+end
+
+local function EliminarSticker(index)
+    if stickersGuardados[index] then
+        table.remove(stickersGuardados, index)
+        GuardarStickers(stickersGuardados)
+        return true
+    end
+    return false
+end
+
+-- FUNCIONES DE COMANDOS
 local function MeteorShowerFunction()
     local char = player.Character
     if not char then return end
@@ -126,7 +264,7 @@ local function AgregarEfectoHover(boton, colorNormal, colorHover)
     end)
 end
 
---  SISTEMA DE CONFIGURACIÓN MEJORADO
+-- SISTEMA DE CONFIGURACIÓN
 local function CargarConfiguracion()
     if not isfile or not isfile("JXNULL_CONFIGS/Config.json") then
         return {
@@ -176,7 +314,7 @@ local function GuardarConfiguracion(datos)
     end
 end
 
--- 📏 FUNCIÓN PARA CALCULAR ALTURA DE TEXTO
+-- FUNCIÓN PARA CALCULAR ALTURA DE TEXTO
 local function CalcularAlturaTexto(texto, anchoDisponible, tamanoTexto, fuente)
     local tempLabel = Instance.new("TextLabel")
     tempLabel.Text = texto
@@ -192,7 +330,7 @@ local function CalcularAlturaTexto(texto, anchoDisponible, tamanoTexto, fuente)
     return math.max(altura, 20)
 end
 
--- 🆕 FUNCIÓN PARA CREAR INDICADOR DE RESPUESTA
+-- FUNCIÓN PARA CREAR INDICADOR DE RESPUESTA
 local function CrearIndicadorRespuesta(container)
     if not mensajeRespondiendo then return end
     
@@ -258,7 +396,220 @@ local function CrearIndicadorRespuesta(container)
     return replyIndicator
 end
 
--- FUNCIÓN: MOSTRAR MENSAJES (ACTUALIZADA CON RESPUESTAS)
+-- FUNCIÓN PARA CREAR PANEL DE STICKERS
+local function CrearPanelStickers()
+    if stickerPanel and stickerPanel.Parent then
+        stickerPanel:Destroy()
+    end
+    
+    local panelWidth = isMobile and math.min(frame.AbsoluteSize.X * 0.90, 300) or 320
+    local panelHeight = isMobile and 250 or 280
+    
+    stickerPanel = Instance.new("Frame")
+    stickerPanel.Name = "StickerPanel"
+    stickerPanel.Size = UDim2.new(0, panelWidth, 0, panelHeight)
+    stickerPanel.Position = UDim2.new(0.5, -panelWidth/2, 0.5, -panelHeight/2)
+    stickerPanel.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+    stickerPanel.BorderSizePixel = 0
+    stickerPanel.ZIndex = 25
+    stickerPanel.Parent = frame
+    
+    local panelCorner = Instance.new("UICorner", stickerPanel)
+    panelCorner.CornerRadius = UDim.new(0, 12)
+    
+    local panelStroke = Instance.new("UIStroke", stickerPanel)
+    panelStroke.Color = Color3.fromRGB(88, 101, 242)
+    panelStroke.Thickness = 2
+    
+    -- Título
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, isMobile and 35 or 40)
+    titleBar.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    titleBar.BorderSizePixel = 0
+    titleBar.ZIndex = 26
+    titleBar.Parent = stickerPanel
+    
+    local titleCorner = Instance.new("UICorner", titleBar)
+    titleCorner.CornerRadius = UDim.new(0, 12)
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(0.7, 0, 1, 0)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "🎨 MIS STICKERS (" .. #stickersGuardados .. ")"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = isMobile and 13 or 15
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 27
+    title.Parent = titleBar
+    
+    -- Botón cerrar
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, isMobile and 28 or 32, 0, isMobile and 28 or 32)
+    closeBtn.Position = UDim2.new(1, -(isMobile and 33 or 37), 0.5, -(isMobile and 14 or 16))
+    closeBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+    closeBtn.Text = "✕"
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = isMobile and 14 or 16
+    closeBtn.BorderSizePixel = 0
+    closeBtn.ZIndex = 27
+    closeBtn.Parent = titleBar
+    
+    local closeBtnCorner = Instance.new("UICorner", closeBtn)
+    closeBtnCorner.CornerRadius = UDim.new(0, 6)
+    
+    AgregarEfectoHover(closeBtn, Color3.fromRGB(220, 53, 69), Color3.fromRGB(255, 70, 85))
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        stickerPanel:Destroy()
+        stickerPanel = nil
+    end)
+    
+    -- ScrollingFrame para stickers
+    local stickerScroll = Instance.new("ScrollingFrame")
+    stickerScroll.Name = "StickerScroll"
+    stickerScroll.Size = UDim2.new(1, -20, 1, -(isMobile and 50 or 55))
+    stickerScroll.Position = UDim2.new(0, 10, 0, isMobile and 40 or 45)
+    stickerScroll.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    stickerScroll.BackgroundTransparency = 0.5
+    stickerScroll.BorderSizePixel = 0
+    stickerScroll.ScrollBarThickness = isMobile and 4 or 6
+    stickerScroll.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
+    stickerScroll.ZIndex = 26
+    stickerScroll.Parent = stickerPanel
+    
+    local scrollCorner = Instance.new("UICorner", stickerScroll)
+    scrollCorner.CornerRadius = UDim.new(0, 8)
+    
+    local stickerGrid = Instance.new("UIGridLayout", stickerScroll)
+    stickerGrid.CellSize = UDim2.new(0, isMobile and 80 or 90, 0, isMobile and 80 or 90)
+    stickerGrid.CellPadding = UDim2.new(0, isMobile and 6 or 8, 0, isMobile and 6 or 8)
+    stickerGrid.SortOrder = Enum.SortOrder.LayoutOrder
+    
+    local gridPadding = Instance.new("UIPadding", stickerScroll)
+    gridPadding.PaddingLeft = UDim.new(0, 5)
+    gridPadding.PaddingRight = UDim.new(0, 5)
+    gridPadding.PaddingTop = UDim.new(0, 5)
+    gridPadding.PaddingBottom = UDim.new(0, 5)
+    
+    -- Crear stickers
+    if #stickersGuardados == 0 then
+        local emptyLabel = Instance.new("TextLabel")
+        emptyLabel.Size = UDim2.new(1, 0, 1, 0)
+        emptyLabel.BackgroundTransparency = 1
+        emptyLabel.Text = "🎨\n\nNo tienes stickers guardados\n\nEnvía una URL de imagen\nen el chat para guardarla"
+        emptyLabel.TextColor3 = Color3.fromRGB(150, 150, 160)
+        emptyLabel.Font = Enum.Font.GothamMedium
+        emptyLabel.TextSize = isMobile and 11 or 13
+        emptyLabel.ZIndex = 27
+        emptyLabel.Parent = stickerScroll
+    else
+        for index, sticker in ipairs(stickersGuardados) do
+            local stickerContainer = Instance.new("Frame")
+            stickerContainer.Name = "Sticker_" .. index
+            stickerContainer.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+            stickerContainer.BorderSizePixel = 0
+            stickerContainer.ZIndex = 27
+            stickerContainer.Parent = stickerScroll
+            
+            local containerCorner = Instance.new("UICorner", stickerContainer)
+            containerCorner.CornerRadius = UDim.new(0, 8)
+            
+            local containerStroke = Instance.new("UIStroke", stickerContainer)
+            containerStroke.Color = Color3.fromRGB(50, 50, 60)
+            containerStroke.Thickness = 1
+            
+            local stickerImg = Instance.new("ImageLabel")
+            stickerImg.Name = "StickerImage"
+            stickerImg.Size = UDim2.new(1, -10, 1, -35)
+            stickerImg.Position = UDim2.new(0, 5, 0, 5)
+            stickerImg.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+            stickerImg.Image = sticker.url
+            stickerImg.ScaleType = Enum.ScaleType.Fit
+            stickerImg.ZIndex = 28
+            stickerImg.Parent = stickerContainer
+            
+            local imgCorner = Instance.new("UICorner", stickerImg)
+            imgCorner.CornerRadius = UDim.new(0, 6)
+            
+            -- Botones
+            local btnContainer = Instance.new("Frame")
+            btnContainer.Size = UDim2.new(1, 0, 0, 25)
+            btnContainer.Position = UDim2.new(0, 0, 1, -25)
+            btnContainer.BackgroundTransparency = 1
+            btnContainer.ZIndex = 28
+            btnContainer.Parent = stickerContainer
+            
+            local useBtn = Instance.new("TextButton")
+            useBtn.Size = UDim2.new(0.5, -2, 1, 0)
+            useBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
+            useBtn.Text = "📤"
+            useBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            useBtn.Font = Enum.Font.GothamBold
+            useBtn.TextSize = isMobile and 14 or 16
+            useBtn.BorderSizePixel = 0
+            useBtn.ZIndex = 29
+            useBtn.Parent = btnContainer
+            
+            local useBtnCorner = Instance.new("UICorner", useBtn)
+            useBtnCorner.CornerRadius = UDim.new(0, 6)
+            
+            useBtn.MouseButton1Click:Connect(function()
+                if textBox then
+                    textBox.Text = sticker.url
+                    stickerPanel:Destroy()
+                    stickerPanel = nil
+                    textBox:CaptureFocus()
+                end
+            end)
+            
+            local deleteBtn = Instance.new("TextButton")
+            deleteBtn.Size = UDim2.new(0.5, -2, 1, 0)
+            deleteBtn.Position = UDim2.new(0.5, 2, 0, 0)
+            deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            deleteBtn.Text = "🗑️"
+            deleteBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            deleteBtn.Font = Enum.Font.GothamBold
+            deleteBtn.TextSize = isMobile and 14 or 16
+            deleteBtn.BorderSizePixel = 0
+            deleteBtn.ZIndex = 29
+            deleteBtn.Parent = btnContainer
+            
+            local deleteBtnCorner = Instance.new("UICorner", deleteBtn)
+            deleteBtnCorner.CornerRadius = UDim.new(0, 6)
+            
+            deleteBtn.MouseButton1Click:Connect(function()
+                if EliminarSticker(index) then
+                    CrearPanelStickers()
+                end
+            end)
+            
+            stickerContainer.MouseEnter:Connect(function()
+                TweenService:Create(containerStroke, TweenInfo.new(0.2), {
+                    Color = Color3.fromRGB(88, 101, 242),
+                    Thickness = 2
+                }):Play()
+            end)
+            
+            stickerContainer.MouseLeave:Connect(function()
+                TweenService:Create(containerStroke, TweenInfo.new(0.2), {
+                    Color = Color3.fromRGB(50, 50, 60),
+                    Thickness = 1
+                }):Play()
+            end)
+        end
+    end
+    
+    stickerPanel.Size = UDim2.new(0, 0, 0, 0)
+    TweenService:Create(stickerPanel, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+        Size = UDim2.new(0, panelWidth, 0, panelHeight)
+    }):Play()
+end
+
+-- FUNCIÓN: MOSTRAR MENSAJES
 local function showMessages(data)
     if not chatBox then return end
 
@@ -293,6 +644,19 @@ local function showMessages(data)
         local username = tostring(msg.username or "???")
         local text = tostring(msg.text or "")
         
+        -- Detectar URL de imagen en el texto
+        local urlImagen = DetectarURLImagen(text)
+        local esSticker = urlImagen ~= nil
+        
+        -- Extraer texto sin la URL
+        local textoSinURL = ExtraerTextoSinURL(text, urlImagen)
+        local hayTextoAdicional = textoSinURL ~= "" and textoSinURL ~= text
+        
+        -- SOLO guardar sticker si hay una imagen
+        if esSticker and not text:lower():find("discord") then
+            local success, resultado = AgregarSticker(urlImagen, username .. "_" .. os.time())
+        end
+        
         local tag = ""
         local tagColor = Color3.fromRGB(200, 200, 200)
         
@@ -301,6 +665,7 @@ local function showMessages(data)
             tagColor = Color3.fromRGB(255, 215, 0)
         end
 
+        -- Comandos
         local args = text:split(" ")
         local comando = args[1]:lower()
         
@@ -330,17 +695,25 @@ local function showMessages(data)
         end
 
         if text:lower():find("discord") then
-            continue
+            local esImagenDiscord = text:match("https?://cdn%.discordapp%.com") or 
+                                   text:match("https?://media%.discordapp%.net")
+            if not esImagenDiscord then
+                continue
+            end
         end
 
-        -- 📐 CALCULAR DIMENSIONES BASADAS EN CONTENIDO
+        -- Calcular dimensiones
         local avatarSize = isMobile and 40 or 50
         local anchoDisponible = chatBox.AbsoluteSize.X - avatarSize - 70
         
-        local alturaTexto = CalcularAlturaTexto(text, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
+        local alturaTexto = 0
+        if hayTextoAdicional then
+            alturaTexto = CalcularAlturaTexto(textoSinURL, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
+        end
+        
+        local alturaSticker = esSticker and (isMobile and 130 or 170) or 0
         local alturaGameInfo = CalcularAlturaTexto("🎮 " .. (msg.game_name or "Unknown Game"), anchoDisponible, isMobile and 9 or 11, Enum.Font.GothamMedium)
         
-        -- 🆕 Si tiene respuesta referenciada, agregar altura extra
         local alturaRespuesta = 0
         if msg.reply_to then
             alturaRespuesta = isMobile and 35 or 40
@@ -348,10 +721,10 @@ local function showMessages(data)
         
         local alturaTotal = math.max(
             avatarSize + 10,
-            20 + alturaGameInfo + alturaTexto + alturaRespuesta + 25
+            20 + alturaGameInfo + alturaTexto + alturaSticker + alturaRespuesta + 25
         )
 
-        -- 📦 CONTENEDOR CON TAMAÑO FIJO CALCULADO
+        -- Contenedor
         local container = Instance.new("Frame")
         container.Name = "MessageContainer_" .. messageId
         container.Size = UDim2.new(1, -10, 0, alturaTotal)
@@ -395,7 +768,7 @@ local function showMessages(data)
         end)
         if success then userId = result end
 
-        -- AVATAR
+        -- Avatar
         local avatarContainer = Instance.new("Frame")
         avatarContainer.Name = "AvatarContainer"
         avatarContainer.Size = UDim2.new(0, avatarSize, 0, avatarSize)
@@ -407,7 +780,6 @@ local function showMessages(data)
         local avatarCorner = Instance.new("UICorner", avatarContainer)
         avatarCorner.CornerRadius = UDim.new(0, avatarSize/2)
 
-        -- 🌟 BORDE ANIMADO PARA OWNERS
         if ChatScripters[username] then
             local borderFrame = Instance.new("Frame")
             borderFrame.Name = "BorderFrame"
@@ -462,7 +834,7 @@ local function showMessages(data)
         local avatarImgCorner = Instance.new("UICorner", avatar)
         avatarImgCorner.CornerRadius = UDim.new(0, (avatarSize-4)/2)
 
-        -- FRAME DEL MENSAJE
+        -- Frame del mensaje
         local messageFrame = Instance.new("Frame")
         messageFrame.Name = "MessageFrame"
         messageFrame.Size = UDim2.new(1, -(avatarSize + 20), 1, -10)
@@ -471,7 +843,7 @@ local function showMessages(data)
         messageFrame.ZIndex = 3
         messageFrame.Parent = container
 
-        -- USUARIO
+        -- Usuario
         local usernameLabel = Instance.new("TextLabel")
         usernameLabel.Name = "Username"
         usernameLabel.Size = UDim2.new(0, 200, 0, 18)
@@ -484,7 +856,7 @@ local function showMessages(data)
         usernameLabel.ZIndex = 4
         usernameLabel.Parent = messageFrame
 
-        -- 👑 TAG PREMIUM DE OWNER
+        -- Tag Owner
         if ChatScripters[username] then
             local tagWidth = isMobile and 70 or 85
             local tagHeight = isMobile and 18 or 20
@@ -565,29 +937,11 @@ local function showMessages(data)
                     task.wait(0.05)
                 end
             end)
-
-            tagBorderFrame.MouseEnter:Connect(function()
-                TweenService:Create(tagBorderFrame, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
-                    Size = UDim2.new(0, (tagWidth + 4) * 1.05, 0, (tagHeight + 4) * 1.05)
-                }):Play()
-                TweenService:Create(tagContainer, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
-                    Size = UDim2.new(0, tagWidth * 1.05, 0, tagHeight * 1.05)
-                }):Play()
-            end)
-
-            tagBorderFrame.MouseLeave:Connect(function()
-                TweenService:Create(tagBorderFrame, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
-                    Size = UDim2.new(0, tagWidth + 4, 0, tagHeight + 4)
-                }):Play()
-                TweenService:Create(tagContainer, TweenInfo.new(0.2, Enum.EasingStyle.Back), {
-                    Size = UDim2.new(0, tagWidth, 0, tagHeight)
-                }):Play()
-            end)
         end
 
         local offsetY = 20
 
-        -- 🆕 MOSTRAR MENSAJE AL QUE SE ESTÁ RESPONDIENDO
+        -- Mensaje de respuesta
         if msg.reply_to then
             local replyFrame = Instance.new("Frame")
             replyFrame.Name = "ReplyReference"
@@ -636,7 +990,7 @@ local function showMessages(data)
             offsetY = offsetY + (isMobile and 35 or 40)
         end
 
-        -- NOMBRE DEL JUEGO
+        -- Nombre del juego
         local gameInfo = Instance.new("TextLabel")
         gameInfo.Name = "GameInfo"
         gameInfo.Size = UDim2.new(1, -50, 0, alturaGameInfo + 4)
@@ -654,27 +1008,220 @@ local function showMessages(data)
 
         offsetY = offsetY + alturaGameInfo + 6
 
-        -- TEXTO DEL MENSAJE
-        local messageText = Instance.new("TextLabel")
-        messageText.Name = "MessageText"
-        messageText.Size = UDim2.new(1, -50, 0, alturaTexto + 4)
-        messageText.Position = UDim2.new(0, 0, 0, offsetY)
-        messageText.BackgroundTransparency = 1
-        messageText.Text = text
-        messageText.TextColor3 = Color3.fromRGB(230, 230, 230)
-        messageText.Font = Enum.Font.Gotham
-        messageText.TextSize = isMobile and 12 or 13
-        messageText.TextXAlignment = Enum.TextXAlignment.Left
-        messageText.TextYAlignment = Enum.TextYAlignment.Top
-        messageText.TextWrapped = true
-        messageText.ZIndex = 4
-        messageText.Parent = messageFrame
+        -- Determinar el orden de mostrado basado en la posición de la URL
+        local urlAlInicio = text:find("^%s*" .. (urlImagen or "XXXX"))
+        
+        if esSticker and urlAlInicio then
+            -- URL al inicio: primero sticker, luego texto
+            
+            -- MOSTRAR STICKER
+            local stickerContainer = Instance.new("Frame")
+            stickerContainer.Name = "StickerContainer"
+            stickerContainer.Size = UDim2.new(0, isMobile and 120 or 160, 0, isMobile and 120 or 160)
+            stickerContainer.Position = UDim2.new(0, 0, 0, offsetY)
+            stickerContainer.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+            stickerContainer.BorderSizePixel = 0
+            stickerContainer.ZIndex = 4
+            stickerContainer.Parent = messageFrame
+            
+            local stickerCorner = Instance.new("UICorner", stickerContainer)
+            stickerCorner.CornerRadius = UDim.new(0, 12)
+            
+            local stickerStroke = Instance.new("UIStroke", stickerContainer)
+            stickerStroke.Color = Color3.fromRGB(88, 101, 242)
+            stickerStroke.Thickness = 2
+            stickerStroke.Transparency = 0.5
+            
+            local stickerImage = Instance.new("ImageLabel")
+            stickerImage.Name = "StickerImage"
+            stickerImage.Size = UDim2.new(1, -10, 1, -10)
+            stickerImage.Position = UDim2.new(0, 5, 0, 5)
+            stickerImage.BackgroundTransparency = 1
+            stickerImage.Image = urlImagen
+            stickerImage.ScaleType = Enum.ScaleType.Fit
+            stickerImage.ZIndex = 5
+            stickerImage.Parent = stickerContainer
+            
+            local imgCorner = Instance.new("UICorner", stickerImage)
+            imgCorner.CornerRadius = UDim.new(0, 10)
+            
+            stickerContainer.MouseEnter:Connect(function()
+                TweenService:Create(stickerStroke, TweenInfo.new(0.2), {
+                    Transparency = 0.2,
+                    Thickness = 3
+                }):Play()
+                TweenService:Create(stickerContainer, TweenInfo.new(0.2), {
+                    Size = UDim2.new(0, (isMobile and 120 or 160) * 1.05, 0, (isMobile and 120 or 160) * 1.05)
+                }):Play()
+            end)
+            
+            stickerContainer.MouseLeave:Connect(function()
+                TweenService:Create(stickerStroke, TweenInfo.new(0.2), {
+                    Transparency = 0.5,
+                    Thickness = 2
+                }):Play()
+                TweenService:Create(stickerContainer, TweenInfo.new(0.2), {
+                    Size = UDim2.new(0, isMobile and 120 or 160, 0, isMobile and 120 or 160)
+                }):Play()
+            end)
+            
+            local newBadge = Instance.new("Frame")
+            newBadge.Size = UDim2.new(0, isMobile and 70 or 80, 0, isMobile and 20 or 22)
+            newBadge.Position = UDim2.new(1, -(isMobile and 75 or 85), 0, 5)
+            newBadge.BackgroundColor3 = Color3.fromRGB(255, 105, 180)
+            newBadge.BorderSizePixel = 0
+            newBadge.ZIndex = 6
+            newBadge.Parent = stickerContainer
+            
+            local badgeCorner = Instance.new("UICorner", newBadge)
+            badgeCorner.CornerRadius = UDim.new(0, 8)
+            
+            local badgeLabel = Instance.new("TextLabel")
+            badgeLabel.Size = UDim2.new(1, 0, 1, 0)
+            badgeLabel.BackgroundTransparency = 1
+            badgeLabel.Text = "🎨 IMG"
+            badgeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            badgeLabel.Font = Enum.Font.GothamBold
+            badgeLabel.TextSize = isMobile and 9 or 10
+            badgeLabel.ZIndex = 7
+            badgeLabel.Parent = newBadge
+            
+            offsetY = offsetY + (isMobile and 130 or 170)
+            
+            -- MOSTRAR TEXTO SI EXISTE
+            if hayTextoAdicional then
+                local messageText = Instance.new("TextLabel")
+                messageText.Name = "MessageText"
+                messageText.Size = UDim2.new(1, -50, 0, alturaTexto + 4)
+                messageText.Position = UDim2.new(0, 0, 0, offsetY)
+                messageText.BackgroundTransparency = 1
+                messageText.Text = textoSinURL
+                messageText.TextColor3 = Color3.fromRGB(230, 230, 230)
+                messageText.Font = Enum.Font.Gotham
+                messageText.TextSize = isMobile and 12 or 13
+                messageText.TextXAlignment = Enum.TextXAlignment.Left
+                messageText.TextYAlignment = Enum.TextYAlignment.Top
+                messageText.TextWrapped = true
+                messageText.ZIndex = 4
+                messageText.Parent = messageFrame
+            end
+            
+        elseif esSticker then
+            -- URL al final o en medio: primero texto, luego sticker
+            
+            -- MOSTRAR TEXTO SI EXISTE
+            if hayTextoAdicional then
+                local messageText = Instance.new("TextLabel")
+                messageText.Name = "MessageText"
+                messageText.Size = UDim2.new(1, -50, 0, alturaTexto + 4)
+                messageText.Position = UDim2.new(0, 0, 0, offsetY)
+                messageText.BackgroundTransparency = 1
+                messageText.Text = textoSinURL
+                messageText.TextColor3 = Color3.fromRGB(230, 230, 230)
+                messageText.Font = Enum.Font.Gotham
+                messageText.TextSize = isMobile and 12 or 13
+                messageText.TextXAlignment = Enum.TextXAlignment.Left
+                messageText.TextYAlignment = Enum.TextYAlignment.Top
+                messageText.TextWrapped = true
+                messageText.ZIndex = 4
+                messageText.Parent = messageFrame
+                
+                offsetY = offsetY + alturaTexto + 8
+            end
+            
+            -- MOSTRAR STICKER
+            local stickerContainer = Instance.new("Frame")
+            stickerContainer.Name = "StickerContainer"
+            stickerContainer.Size = UDim2.new(0, isMobile and 120 or 160, 0, isMobile and 120 or 160)
+            stickerContainer.Position = UDim2.new(0, 0, 0, offsetY)
+            stickerContainer.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+            stickerContainer.BorderSizePixel = 0
+            stickerContainer.ZIndex = 4
+            stickerContainer.Parent = messageFrame
+            
+            local stickerCorner = Instance.new("UICorner", stickerContainer)
+            stickerCorner.CornerRadius = UDim.new(0, 12)
+            
+            local stickerStroke = Instance.new("UIStroke", stickerContainer)
+            stickerStroke.Color = Color3.fromRGB(88, 101, 242)
+            stickerStroke.Thickness = 2
+            stickerStroke.Transparency = 0.5
+            
+            local stickerImage = Instance.new("ImageLabel")
+            stickerImage.Name = "StickerImage"
+            stickerImage.Size = UDim2.new(1, -10, 1, -10)
+            stickerImage.Position = UDim2.new(0, 5, 0, 5)
+            stickerImage.BackgroundTransparency = 1
+            stickerImage.Image = urlImagen
+            stickerImage.ScaleType = Enum.ScaleType.Fit
+            stickerImage.ZIndex = 5
+            stickerImage.Parent = stickerContainer
+            
+            local imgCorner = Instance.new("UICorner", stickerImage)
+            imgCorner.CornerRadius = UDim.new(0, 10)
+            
+            stickerContainer.MouseEnter:Connect(function()
+                TweenService:Create(stickerStroke, TweenInfo.new(0.2), {
+                    Transparency = 0.2,
+                    Thickness = 3
+                }):Play()
+                TweenService:Create(stickerContainer, TweenInfo.new(0.2), {
+                    Size = UDim2.new(0, (isMobile and 120 or 160) * 1.05, 0, (isMobile and 120 or 160) * 1.05)
+                }):Play()
+            end)
+            
+            stickerContainer.MouseLeave:Connect(function()
+                TweenService:Create(stickerStroke, TweenInfo.new(0.2), {
+                    Transparency = 0.5,
+                    Thickness = 2
+                }):Play()
+                TweenService:Create(stickerContainer, TweenInfo.new(0.2), {
+                    Size = UDim2.new(0, isMobile and 120 or 160, 0, isMobile and 120 or 160)
+                }):Play()
+            end)
+            
+            local newBadge = Instance.new("Frame")
+            newBadge.Size = UDim2.new(0, isMobile and 70 or 80, 0, isMobile and 20 or 22)
+            newBadge.Position = UDim2.new(1, -(isMobile and 75 or 85), 0, 5)
+            newBadge.BackgroundColor3 = Color3.fromRGB(255, 105, 180)
+            newBadge.BorderSizePixel = 0
+            newBadge.ZIndex = 6
+            newBadge.Parent = stickerContainer
+            
+            local badgeCorner = Instance.new("UICorner", newBadge)
+            badgeCorner.CornerRadius = UDim.new(0, 8)
+            
+            local badgeLabel = Instance.new("TextLabel")
+            badgeLabel.Size = UDim2.new(1, 0, 1, 0)
+            badgeLabel.BackgroundTransparency = 1
+            badgeLabel.Text = "🎨 IMG"
+            badgeLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+            badgeLabel.Font = Enum.Font.GothamBold
+            badgeLabel.TextSize = isMobile and 9 or 10
+            badgeLabel.ZIndex = 7
+            badgeLabel.Parent = newBadge
+            
+        else
+            -- No hay imagen, solo texto normal
+            local messageText = Instance.new("TextLabel")
+            messageText.Name = "MessageText"
+            messageText.Size = UDim2.new(1, -50, 0, CalcularAlturaTexto(text, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham) + 4)
+            messageText.Position = UDim2.new(0, 0, 0, offsetY)
+            messageText.BackgroundTransparency = 1
+            messageText.Text = text
+            messageText.TextColor3 = Color3.fromRGB(230, 230, 230)
+            messageText.Font = Enum.Font.Gotham
+            messageText.TextSize = isMobile and 12 or 13
+            messageText.TextXAlignment = Enum.TextXAlignment.Left
+            messageText.TextYAlignment = Enum.TextYAlignment.Top
+            messageText.TextWrapped = true
+            messageText.ZIndex = 4
+            messageText.Parent = messageFrame
+        end
 
-        -- 🆕 BOTONES: COPIAR Y RESPONDER
+        -- Botones
         local btnSize = isMobile and 38 or 45
-        local btnSpacing = isMobile and 43 or 50
 
-        -- BOTÓN DE RESPONDER
         local replyBtn = Instance.new("TextButton")
         replyBtn.Name = "ReplyButton"
         replyBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
@@ -707,34 +1254,29 @@ local function showMessages(data)
         end)
 
         replyBtn.MouseButton1Click:Connect(function()
-            -- Guardar información del mensaje a responder
             mensajeRespondiendo = {
                 username = username,
                 text = text,
                 messageId = messageId
             }
             
-            -- Actualizar el indicador visual
             local existingIndicator = frame:FindFirstChild("ReplyIndicator")
             if existingIndicator then
                 existingIndicator:Destroy()
             end
             CrearIndicadorRespuesta(frame)
             
-            -- Feedback visual
             replyBtn.Text = "✅"
             replyBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
             task.wait(0.5)
             replyBtn.Text = "↩️"
             replyBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
             
-            -- Enfocar el textbox
             if textBox then
                 textBox:CaptureFocus()
             end
         end)
 
-        -- BOTÓN DE COPIAR
         local copyBtn = Instance.new("TextButton")
         copyBtn.Name = "CopyButton"
         copyBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
@@ -779,7 +1321,7 @@ local function showMessages(data)
             end
         end)
 
-        -- ANIMACIÓN DE ENTRADA
+        -- Animación de entrada
         container.BackgroundTransparency = 1
         container.Size = UDim2.new(1, -10, 0, 0)
         
@@ -789,7 +1331,6 @@ local function showMessages(data)
         }):Play()
     end
 
-    -- ✅ SCROLL AUTOMÁTICO CORREGIDO
     task.wait(0.1)
     if estoyAlFinal and chatBox then
         chatBox.CanvasPosition = Vector2.new(0, chatBox.AbsoluteCanvasSize.Y)
@@ -800,7 +1341,6 @@ local function showMessages(data)
     end
 end
 
--- 🆕 FUNCIÓN PARA ENVIAR NOTIFICACIÓN DE RESPUESTA
 local function EnviarNotificacionRespuesta(targetUsername, responderUsername, mensaje)
     task.spawn(function()
         local notificationData = {
@@ -824,7 +1364,6 @@ local function EnviarNotificacionRespuesta(targetUsername, responderUsername, me
     end)
 end
 
--- 🆕 FUNCIÓN PARA VERIFICAR NOTIFICACIONES DE RESPUESTAS
 local function VerificarNotificaciones()
     task.spawn(function()
         while escuchaActiva do
@@ -843,7 +1382,6 @@ local function VerificarNotificaciones()
                 if ok and typeof(notificaciones) == "table" then
                     for notifId, notif in pairs(notificaciones) do
                         if notif.target_user == player.Name and not notif.read then
-                            -- Mostrar notificación
                             if _G.Rayfield and _G.Rayfield.Notify then
                                 _G.Rayfield:Notify({
                                     Title = "💬 " .. notif.responder .. " te respondió",
@@ -853,13 +1391,12 @@ local function VerificarNotificaciones()
                                 })
                             end
                             
-                            -- Marcar como leída
                             pcall(function()
                                 request({
                                     Url = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Respuestas/" .. notifId .. ".json",
                                     Method = "DELETE"
                                 })
-                            end)
+            end)
                         end
                     end
                 end
@@ -877,6 +1414,8 @@ function crearChatGUI()
     end
 
     primeraVez = true
+    stickersGuardados = CargarStickers()
+    isMinimized = false
 
     local config = CargarConfiguracion()
 
@@ -991,10 +1530,64 @@ function crearChatGUI()
     local btnSize = isMobile and 28 or 32
     local btnSpacing = isMobile and 34 or 38
 
+    -- 📦 BOTÓN DE MINIMIZAR (donde estaba el de stickers)
+    local minimizeBtn = Instance.new("TextButton")
+    minimizeBtn.Name = "MinimizeButton"
+    minimizeBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
+    minimizeBtn.Position = UDim2.new(1, -(btnSize + 5), 0.5, -btnSize/2)
+    minimizeBtn.BackgroundColor3 = Color3.fromRGB(255, 193, 7)
+    minimizeBtn.Text = "➖"
+    minimizeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    minimizeBtn.Font = Enum.Font.GothamBold
+    minimizeBtn.TextSize = isMobile and 14 or 18
+    minimizeBtn.BorderSizePixel = 0
+    minimizeBtn.ZIndex = 12
+    minimizeBtn.Parent = titleBar
+
+    local minimizeCorner = Instance.new("UICorner", minimizeBtn)
+    minimizeCorner.CornerRadius = UDim.new(0, 6)
+
+    AgregarEfectoHover(
+        minimizeBtn, 
+        Color3.fromRGB(255, 193, 7), 
+        Color3.fromRGB(255, 213, 79)
+    )
+
+    minimizeBtn.MouseButton1Click:Connect(function()
+        if isMinimized then
+            -- Maximizar
+            isMinimized = false
+            minimizeBtn.Text = "➖"
+            
+            -- Mostrar elementos ocultos
+            if chatBox then chatBox.Visible = true end
+            if inputContainer then inputContainer.Visible = true end
+            if bgImage then bgImage.Visible = true end
+            
+            TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+                Size = UDim2.new(0, frameWidth, 0, frameHeight)
+            }):Play()
+        else
+            -- Minimizar
+            isMinimized = true
+            minimizeBtn.Text = "➕"
+            
+            TweenService:Create(frame, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+                Size = UDim2.new(0, frameWidth, 0, 0)
+            }):Play()
+            
+            -- Ocultar elementos después de la animación
+            task.wait(0.3)
+            if chatBox then chatBox.Visible = false end
+            if inputContainer then inputContainer.Visible = false end
+            if bgImage then bgImage.Visible = false end
+        end
+    end)
+
     local settingsBtn = Instance.new("TextButton")
     settingsBtn.Name = "SettingsButton"
     settingsBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
-    settingsBtn.Position = UDim2.new(1, -(btnSize + 5), 0.5, -btnSize/2)
+    settingsBtn.Position = UDim2.new(1, -(btnSize * 2 + 10), 0.5, -btnSize/2)
     settingsBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
     settingsBtn.Text = "⚙️"
     settingsBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1017,7 +1610,7 @@ function crearChatGUI()
         local deleteBtn = Instance.new("TextButton")
         deleteBtn.Name = "DeleteButton"
         deleteBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
-        deleteBtn.Position = UDim2.new(1, -(btnSize * 2 + 10), 0.5, -btnSize/2)
+        deleteBtn.Position = UDim2.new(1, -(btnSize * 3 + 15), 0.5, -btnSize/2)
         deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
         deleteBtn.Text = "🗑️"
         deleteBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -1178,7 +1771,7 @@ function crearChatGUI()
 
     UserInputService.InputChanged:Connect(updateInput)
 
-    -- ÁREA DE MENSAJES CON SCROLL VERTICAL
+    -- ÁREA DE MENSAJES
     local chatBoxHeight = isMobile and 0.70 or 0.78
 
     chatBox = Instance.new("ScrollingFrame")
@@ -1194,6 +1787,7 @@ function crearChatGUI()
     chatBox.ScrollingDirection = Enum.ScrollingDirection.Y
     chatBox.ClipsDescendants = true
     chatBox.ZIndex = 2
+    chatBox.Visible = true
     chatBox.Parent = frame
 
     local chatLayout = Instance.new("UIListLayout", chatBox)
@@ -1207,7 +1801,7 @@ function crearChatGUI()
     chatPadding.PaddingTop = UDim.new(0, 5)
     chatPadding.PaddingBottom = UDim.new(0, 5)
 
-    -- CONTENEDOR DE INPUT CON SCROLL
+    -- CONTENEDOR DE INPUT
     local inputHeight = isMobile and 0.12 or 0.12
     local inputPosY = isMobile and 0.86 or 0.68
 
@@ -1219,6 +1813,7 @@ function crearChatGUI()
     inputContainer.BorderSizePixel = 0
     inputContainer.ClipsDescendants = false
     inputContainer.ZIndex = 2
+    inputContainer.Visible = true
     inputContainer.Parent = frame
 
     local inputCorner = Instance.new("UICorner", inputContainer)
@@ -1231,7 +1826,7 @@ function crearChatGUI()
 
     local textBoxScroll = Instance.new("ScrollingFrame")
     textBoxScroll.Name = "TextBoxScroll"
-    textBoxScroll.Size = UDim2.new(0.65, -10, 1, -10)
+    textBoxScroll.Size = UDim2.new(0.56, -10, 1, -10)
     textBoxScroll.Position = UDim2.new(0, 8, 0, 5)
     textBoxScroll.BackgroundTransparency = 1
     textBoxScroll.BorderSizePixel = 0
@@ -1249,7 +1844,7 @@ function crearChatGUI()
     textBox.Position = UDim2.new(0, 0, 0, 0)
     textBox.BackgroundTransparency = 1
     textBox.Text = ""
-    textBox.PlaceholderText = "💬 Escribe tu mensaje..."
+    textBox.PlaceholderText = "💬 Escribe mensaje o pega URL de imagen..."
     textBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
     textBox.TextColor3 = Color3.fromRGB(255, 255, 255)
     textBox.TextSize = isMobile and 13 or 14
@@ -1283,10 +1878,39 @@ function crearChatGUI()
         }):Play()
     end)
 
+    -- 🎨 BOTÓN DE STICKERS (más pequeño, al lado del botón enviar)
+    local stickerBtnSize = isMobile and 30 or 35
+    
+    stickerButton = Instance.new("TextButton")
+    stickerButton.Name = "StickerButton"
+    stickerButton.Size = UDim2.new(0, stickerBtnSize, 1, -10)
+    stickerButton.Position = UDim2.new(0.56, 2, 0, 5)
+    stickerButton.BackgroundColor3 = Color3.fromRGB(255, 105, 180)
+    stickerButton.Text = "🎨"
+    stickerButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    stickerButton.Font = Enum.Font.GothamBold
+    stickerButton.TextSize = isMobile and 14 or 16
+    stickerButton.BorderSizePixel = 0
+    stickerButton.ZIndex = 3
+    stickerButton.Parent = inputContainer
+
+    local stickerBtnCorner = Instance.new("UICorner", stickerButton)
+    stickerBtnCorner.CornerRadius = UDim.new(0, 6)
+
+    AgregarEfectoHover(
+        stickerButton, 
+        Color3.fromRGB(255, 105, 180), 
+        Color3.fromRGB(255, 130, 200)
+    )
+
+    stickerButton.MouseButton1Click:Connect(function()
+        CrearPanelStickers()
+    end)
+
     sendButton = Instance.new("TextButton")
     sendButton.Name = "SendButton"
-    sendButton.Size = UDim2.new(0.33, -8, 1, -10)
-    sendButton.Position = UDim2.new(0.67, 0, 0, 5)
+    sendButton.Size = UDim2.new(0, 0, 1, -10)
+    sendButton.Position = UDim2.new(0.56, stickerBtnSize + 4, 0, 5)
     sendButton.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
     sendButton.Text = "📨 ENVIAR"
     sendButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -1295,6 +1919,10 @@ function crearChatGUI()
     sendButton.BorderSizePixel = 0
     sendButton.ZIndex = 3
     sendButton.Parent = inputContainer
+    
+    -- Calcular ancho restante para el botón enviar
+    local sendBtnWidth = inputContainer.AbsoluteSize.X * 0.44 - stickerBtnSize - 12
+    sendButton.Size = UDim2.new(0, sendBtnWidth, 1, -10)
 
     local sendCorner = Instance.new("UICorner", sendButton)
     sendCorner.CornerRadius = UDim.new(0, 6)
@@ -1312,7 +1940,7 @@ function crearChatGUI()
         Color3.fromRGB(108, 121, 255)
     )
 
-    -- 🆕 FUNCIÓN PARA ENVIAR MENSAJE CON RESPUESTA
+    -- FUNCIÓN PARA ENVIAR MENSAJE
     local function EnviarMensaje()
         if enviandoMensaje then
             sendButton.Text = "⏳ ESPERA"
@@ -1321,13 +1949,13 @@ function crearChatGUI()
         
         local texto = textBox.Text:gsub("^%s*(.-)%s*$", "%1")
         
-        if texto ~= "" and #texto <= 200 then
+        if texto ~= "" and #texto <= 500 then
             enviandoMensaje = true
             sendButton.Text = "⏳"
             
             local originalSize = sendButton.Size
             TweenService:Create(sendButton, TweenInfo.new(0.1), {
-                Size = UDim2.new(originalSize.X.Scale - 0.02, 0, originalSize.Y.Scale, 0)
+                Size = UDim2.new(0, sendBtnWidth - 5, 1, -10)
             }):Play()
             task.wait(0.1)
             TweenService:Create(sendButton, TweenInfo.new(0.1), {
@@ -1342,7 +1970,6 @@ function crearChatGUI()
                 place_id = game.PlaceId
             }
             
-            -- 🆕 Si está respondiendo a alguien, agregar información de respuesta
             if mensajeRespondiendo then
                 data.reply_to = {
                     username = mensajeRespondiendo.username,
@@ -1350,14 +1977,12 @@ function crearChatGUI()
                     messageId = mensajeRespondiendo.messageId
                 }
                 
-                -- Enviar notificación a la persona respondida
                 EnviarNotificacionRespuesta(
                     mensajeRespondiendo.username,
                     player.Name,
                     texto
                 )
                 
-                -- Limpiar indicador de respuesta
                 local replyIndicator = frame:FindFirstChild("ReplyIndicator")
                 if replyIndicator then
                     replyIndicator:Destroy()
@@ -1390,11 +2015,11 @@ function crearChatGUI()
             task.wait(1)
             enviandoMensaje = false
             
-        elseif #texto > 200 then
-            textBox.PlaceholderText = "❌ Muy largo (máx 200)"
+        elseif #texto > 500 then
+            textBox.PlaceholderText = "❌ Muy largo (máx 500)"
             textBox.PlaceholderColor3 = Color3.fromRGB(255, 80, 80)
             task.wait(2)
-            textBox.PlaceholderText = "💬 Escribe tu mensaje..."
+            textBox.PlaceholderText = "💬 Escribe mensaje o pega URL de imagen..."
             textBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
         end
     end
@@ -1576,7 +2201,6 @@ function crearChatGUI()
         end
     end)
     
-    -- 🆕 Iniciar verificación de notificaciones
     VerificarNotificaciones()
 end
 
@@ -1755,4 +2379,3 @@ game:GetService("Players").PlayerRemoving:Connect(function(plr)
         end)
     end
 end)
-
