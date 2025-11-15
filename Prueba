@@ -1,5 +1,6 @@
--- JXNULL CHAT GLOBAL - VERSIÓN COMPLETA
+-- JXNULL CHAT GLOBAL - VERSIÓN CORREGIDA
 -- Sistema de stickers + Botón minimizar + Sistema de respuestas
+-- CORRECCIONES: Altura de mensajes y minimización del InputContainer
 
 -- Sistema de carpetas
 if makefolder and not isfolder("JXNULL_CONFIGS") then
@@ -27,6 +28,7 @@ local hrpCFrame = nil
 
 -- Variables del GUI
 local gui, chatBox, frame, sendButton, textBox, settingsFrame, bgImage = nil, nil, nil, nil, nil, nil, nil
+local inputContainer = nil -- AÑADIDO AQUÍ PARA SCOPE GLOBAL
 local ultimoMensajeID = nil
 local guiActivo = false
 local ShowChatNotify = false
@@ -110,7 +112,6 @@ local function DetectarURLImagen(texto)
     
     -- 6-9. URLs externas
     if texto:find("cdn%.discordapp%.com") or texto:find("media%.discordapp%.net") then
-        -- Extraer URL completa de Discord
         local url = texto:match("https?://[%w%.%-_]+%.discordapp%.%a+/[%w%.%-_/]+")
         if url then return url end
     end
@@ -137,10 +138,8 @@ end
 local function ExtraerTextoSinURL(texto, urlImagen)
     if not urlImagen then return texto end
     
-    -- Remover la URL del texto
     local textoLimpio = texto:gsub(urlImagen, "")
     
-    -- Si era un ID numérico solo, remover ese patrón
     if urlImagen:find("rbxassetid://") then
         local id = urlImagen:match("rbxassetid://(%d+)")
         if id then
@@ -149,7 +148,6 @@ local function ExtraerTextoSinURL(texto, urlImagen)
         end
     end
     
-    -- Limpiar espacios extra
     textoLimpio = textoLimpio:gsub("^%s*(.-)%s*$", "%1")
     
     return textoLimpio
@@ -702,27 +700,38 @@ local function showMessages(data)
             end
         end
 
-        -- Calcular dimensiones
+        -- 🔧 CALCULAR DIMENSIONES CORRECTAMENTE
         local avatarSize = isMobile and 40 or 50
         local anchoDisponible = chatBox.AbsoluteSize.X - avatarSize - 70
         
-        local alturaTexto = 0
-        if hayTextoAdicional then
-            alturaTexto = CalcularAlturaTexto(textoSinURL, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
+        -- Calcular altura del texto principal
+        local alturaTextoMensaje = 0
+        if not esSticker then
+            -- Si NO hay imagen, calcular altura del texto completo
+            alturaTextoMensaje = CalcularAlturaTexto(text, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
+        elseif hayTextoAdicional then
+            -- Si hay imagen Y texto adicional, calcular altura del texto sin URL
+            alturaTextoMensaje = CalcularAlturaTexto(textoSinURL, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
         end
         
+        -- Altura del sticker
         local alturaSticker = esSticker and (isMobile and 130 or 170) or 0
+        
+        -- Altura del game info
         local alturaGameInfo = CalcularAlturaTexto("🎮 " .. (msg.game_name or "Unknown Game"), anchoDisponible, isMobile and 9 or 11, Enum.Font.GothamMedium)
         
+        -- Altura de respuesta
         local alturaRespuesta = 0
         if msg.reply_to then
             alturaRespuesta = isMobile and 35 or 40
         end
         
-        local alturaTotal = math.max(
-            avatarSize + 10,
-            20 + alturaGameInfo + alturaTexto + alturaSticker + alturaRespuesta + 25
-        )
+        -- 🔧 CALCULAR ALTURA TOTAL CORRECTAMENTE
+        -- Incluir: username (20) + gameInfo + respuesta + texto + sticker + padding (25)
+        local alturaTotal = 20 + alturaGameInfo + alturaRespuesta + alturaTextoMensaje + alturaSticker + 25
+        
+        -- Asegurar altura mínima para el avatar
+        alturaTotal = math.max(alturaTotal, avatarSize + 15)
 
         -- Contenedor
         local container = Instance.new("Frame")
@@ -1092,7 +1101,7 @@ local function showMessages(data)
             if hayTextoAdicional then
                 local messageText = Instance.new("TextLabel")
                 messageText.Name = "MessageText"
-                messageText.Size = UDim2.new(1, -50, 0, alturaTexto + 4)
+                messageText.Size = UDim2.new(1, -50, 0, alturaTextoMensaje + 4)
                 messageText.Position = UDim2.new(0, 0, 0, offsetY)
                 messageText.BackgroundTransparency = 1
                 messageText.Text = textoSinURL
@@ -1113,7 +1122,7 @@ local function showMessages(data)
             if hayTextoAdicional then
                 local messageText = Instance.new("TextLabel")
                 messageText.Name = "MessageText"
-                messageText.Size = UDim2.new(1, -50, 0, alturaTexto + 4)
+                messageText.Size = UDim2.new(1, -50, 0, alturaTextoMensaje + 4)
                 messageText.Position = UDim2.new(0, 0, 0, offsetY)
                 messageText.BackgroundTransparency = 1
                 messageText.Text = textoSinURL
@@ -1126,7 +1135,7 @@ local function showMessages(data)
                 messageText.ZIndex = 4
                 messageText.Parent = messageFrame
                 
-                offsetY = offsetY + alturaTexto + 8
+                offsetY = offsetY + alturaTextoMensaje + 8
             end
             
             -- MOSTRAR STICKER
@@ -1205,7 +1214,7 @@ local function showMessages(data)
             -- No hay imagen, solo texto normal
             local messageText = Instance.new("TextLabel")
             messageText.Name = "MessageText"
-            messageText.Size = UDim2.new(1, -50, 0, CalcularAlturaTexto(text, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham) + 4)
+            messageText.Size = UDim2.new(1, -50, 0, alturaTextoMensaje + 4)
             messageText.Position = UDim2.new(0, 0, 0, offsetY)
             messageText.BackgroundTransparency = 1
             messageText.Text = text
@@ -1396,7 +1405,7 @@ local function VerificarNotificaciones()
                                     Url = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Respuestas/" .. notifId .. ".json",
                                     Method = "DELETE"
                                 })
-            end)
+                            end)
                         end
                     end
                 end
@@ -1530,7 +1539,7 @@ function crearChatGUI()
     local btnSize = isMobile and 28 or 32
     local btnSpacing = isMobile and 34 or 38
 
-    -- 📦 BOTÓN DE MINIMIZAR (donde estaba el de stickers)
+    -- 📦 BOTÓN DE MINIMIZAR (CORREGIDO)
     local minimizeBtn = Instance.new("TextButton")
     minimizeBtn.Name = "MinimizeButton"
     minimizeBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
@@ -1555,11 +1564,11 @@ function crearChatGUI()
 
     minimizeBtn.MouseButton1Click:Connect(function()
         if isMinimized then
-            -- Maximizar
+            -- 🔧 MAXIMIZAR - CORREGIDO
             isMinimized = false
             minimizeBtn.Text = "➖"
             
-            -- Mostrar elementos ocultos
+            -- Mostrar elementos ANTES de la animación
             if chatBox then chatBox.Visible = true end
             if inputContainer then inputContainer.Visible = true end
             if bgImage then bgImage.Visible = true end
@@ -1568,7 +1577,7 @@ function crearChatGUI()
                 Size = UDim2.new(0, frameWidth, 0, frameHeight)
             }):Play()
         else
-            -- Minimizar
+            -- 🔧 MINIMIZAR - CORREGIDO
             isMinimized = true
             minimizeBtn.Text = "➕"
             
@@ -1576,7 +1585,7 @@ function crearChatGUI()
                 Size = UDim2.new(0, frameWidth, 0, 0)
             }):Play()
             
-            -- Ocultar elementos después de la animación
+            -- Ocultar elementos DESPUÉS de la animación
             task.wait(0.3)
             if chatBox then chatBox.Visible = false end
             if inputContainer then inputContainer.Visible = false end
@@ -1805,7 +1814,7 @@ function crearChatGUI()
     local inputHeight = isMobile and 0.12 or 0.12
     local inputPosY = isMobile and 0.86 or 0.68
 
-    local inputContainer = Instance.new("Frame")
+    inputContainer = Instance.new("Frame")
     inputContainer.Name = "InputContainer"
     inputContainer.Size = UDim2.new(1, -16, inputHeight, 0)
     inputContainer.Position = isMobile and UDim2.new(0, 8, inputPosY, 0) or UDim2.new(0, 8, inputPosY, 50)
@@ -1878,7 +1887,7 @@ function crearChatGUI()
         }):Play()
     end)
 
-    -- 🎨 BOTÓN DE STICKERS (más pequeño, al lado del botón enviar)
+    -- 🎨 BOTÓN DE STICKERS
     local stickerBtnSize = isMobile and 30 or 35
     
     stickerButton = Instance.new("TextButton")
@@ -1920,7 +1929,6 @@ function crearChatGUI()
     sendButton.ZIndex = 3
     sendButton.Parent = inputContainer
     
-    -- Calcular ancho restante para el botón enviar
     local sendBtnWidth = inputContainer.AbsoluteSize.X * 0.44 - stickerBtnSize - 12
     sendButton.Size = UDim2.new(0, sendBtnWidth, 1, -10)
 
@@ -2357,6 +2365,7 @@ task.spawn(function()
                     end)
 
                     gui, chatBox, frame, sendButton, textBox, settingsFrame, bgImage = nil, nil, nil, nil, nil, nil, nil
+                    inputContainer = nil
                     mensajesMostrados, ultimoMensajeID = {}, nil
                     primeraVez = true
                 end
