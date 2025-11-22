@@ -701,38 +701,79 @@ local function showMessages(data)
             end
         end
 
-        -- 🔧 CALCULAR DIMENSIONES CORRECTAMENTE
-        local avatarSize = isMobile and 40 or 50
-        local anchoDisponible = chatBox.AbsoluteSize.X - avatarSize - 70
-        
-        -- Calcular altura del texto principal
-        local alturaTextoMensaje = 0
-        if not esSticker then
-            -- Si NO hay imagen, calcular altura del texto completo
-            alturaTextoMensaje = CalcularAlturaTexto(text, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
-        elseif hayTextoAdicional then
-            -- Si hay imagen Y texto adicional, calcular altura del texto sin URL
-            alturaTextoMensaje = CalcularAlturaTexto(textoSinURL, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
-        end
-        
-        -- Altura del sticker
-local alturaSticker = esSticker and (isMobile and 105 or 130) or 0
-        
-        -- Altura del game info
-        local alturaGameInfo = CalcularAlturaTexto("🎮 " .. (msg.game_name or "Unknown Game"), anchoDisponible, isMobile and 9 or 11, Enum.Font.GothamMedium)
-        
-        -- Altura de respuesta
-        local alturaRespuesta = 0
-        if msg.reply_to then
-            alturaRespuesta = isMobile and 35 or 40
-        end
-        
-        -- 🔧 CALCULAR ALTURA TOTAL CORRECTAMENTE
-        -- Incluir: username (20) + gameInfo + respuesta + texto + sticker + padding (25)
-        local alturaTotal = 20 + alturaGameInfo + alturaRespuesta + alturaTextoMensaje + alturaSticker + 25
-        
-        -- Asegurar altura mínima para el avatar
-        alturaTotal = math.max(alturaTotal, avatarSize + 15)
+-- 🔧 CALCULAR DIMENSIONES CORRECTAMENTE
+local avatarSize = isMobile and 40 or 50
+local anchoDisponible = chatBox.AbsoluteSize.X - avatarSize - 70
+
+-- Tamaño real del sticker (coincide con el ImageLabel)
+local stickerRealSize = isMobile and 80 or 120
+
+-- Calcular altura del texto principal
+local alturaTextoMensaje = 0
+if not esSticker then
+    -- Si NO hay imagen, calcular altura del texto completo
+    alturaTextoMensaje = CalcularAlturaTexto(text, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
+elseif hayTextoAdicional then
+    -- Si hay imagen Y texto adicional, calcular altura del texto sin URL
+    alturaTextoMensaje = CalcularAlturaTexto(textoSinURL, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
+end
+
+-- Altura del sticker (usar tamaño REAL del contenedor)
+local alturaSticker = 0
+if esSticker then
+    alturaSticker = stickerRealSize
+end
+
+-- Altura del game info
+local alturaGameInfo = CalcularAlturaTexto("🎮 " .. (msg.game_name or "Unknown Game"), anchoDisponible, isMobile and 9 or 11, Enum.Font.GothamMedium)
+
+-- Altura de respuesta
+local alturaRespuesta = 0
+if msg.reply_to then
+    alturaRespuesta = isMobile and 35 or 40
+end
+
+-- 🔧 CALCULAR ALTURA TOTAL OPTIMIZADA
+local alturaTotal = 0
+
+-- 1. Username (siempre presente)
+alturaTotal = alturaTotal + 20
+
+-- 2. Game Info + su espaciado
+alturaTotal = alturaTotal + alturaGameInfo + 6
+
+-- 3. Respuesta (si existe)
+if msg.reply_to then
+    alturaTotal = alturaTotal + alturaRespuesta + 5
+end
+
+-- 4. Contenido (sticker y/o texto)
+if esSticker and hayTextoAdicional then
+    -- Caso: Sticker + Texto
+    local urlAlInicio = text:find("^%s*" .. (urlImagen or "XXXX"))
+    
+    if urlAlInicio then
+        -- URL al inicio: Sticker arriba, texto abajo
+        alturaTotal = alturaTotal + alturaSticker + 10 + alturaTextoMensaje
+    else
+        -- URL al final: Texto arriba, sticker abajo
+        alturaTotal = alturaTotal + alturaTextoMensaje + 8 + alturaSticker
+    end
+    
+elseif esSticker then
+    -- Caso: Solo Sticker
+    alturaTotal = alturaTotal + alturaSticker
+    
+else
+    -- Caso: Solo Texto
+    alturaTotal = alturaTotal + alturaTextoMensaje
+end
+
+-- 5. Padding final
+alturaTotal = alturaTotal + 15
+
+-- Asegurar altura mínima para el avatar
+alturaTotal = math.max(alturaTotal, avatarSize + 20)
 
         -- Contenedor
         local container = Instance.new("Frame")
@@ -988,9 +1029,9 @@ local alturaSticker = esSticker and (isMobile and 105 or 130) or 0
             -- URL al inicio: primero sticker, luego texto
             
             -- MOSTRAR STICKER
-            local stickerContainer = Instance.new("Frame")
-            stickerContainer.Name = "StickerContainer"
-stickerContainer.Size = UDim2.new(0, isMobile and 95 or 120, 0, isMobile and 95 or 120)
+local stickerContainer = Instance.new("Frame")
+stickerContainer.Name = "StickerContainer"
+stickerContainer.Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
             stickerContainer.Position = UDim2.new(0, 0, 0, offsetY)
             stickerContainer.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
             stickerContainer.BorderSizePixel = 0
@@ -1025,7 +1066,7 @@ stickerContainer.MouseEnter:Connect(function()
         Thickness = 3
     }):Play()
     TweenService:Create(stickerContainer, TweenInfo.new(0.2), {
-Size = UDim2.new(0, (isMobile and 95 or 120) * 1.05, 0, (isMobile and 95 or 120) * 1.05)
+        Size = UDim2.new(0, stickerRealSize * 1.05, 0, stickerRealSize * 1.05)
     }):Play()
 end)
 
@@ -1035,14 +1076,13 @@ stickerContainer.MouseLeave:Connect(function()
         Thickness = 2
     }):Play()
     TweenService:Create(stickerContainer, TweenInfo.new(0.2), {
-Size = UDim2.new(0, isMobile and 95 or 120, 0, isMobile and 95 or 120)
+        Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
     }):Play()
 end)
 
-
            
             
-            offsetY = offsetY + (isMobile and 130 or 170)
+offsetY = offsetY + stickerRealSize + 10
             
             -- MOSTRAR TEXTO SI EXISTE
             if hayTextoAdicional then
@@ -1086,9 +1126,9 @@ end)
             end
             
             -- MOSTRAR STICKER
-            local stickerContainer = Instance.new("Frame")
-            stickerContainer.Name = "StickerContainer"
-            stickerContainer.Size = UDim2.new(0, isMobile and 120 or 160, 0, isMobile and 120 or 160)
+          local stickerContainer = Instance.new("Frame")
+stickerContainer.Name = "StickerContainer"
+stickerContainer.Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
             stickerContainer.Position = UDim2.new(0, 0, 0, offsetY)
             stickerContainer.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
             stickerContainer.BorderSizePixel = 0
