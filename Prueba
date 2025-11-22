@@ -238,11 +238,24 @@ local function EscucharComandosRemotos()
                            -- print("👤 [DEBUG] Target:", cmd.target, "| Mi nombre:", player.Name)
                             
                             -- ✅ Verificar si el comando es para mí o para todos
-                            local esParaMi = (cmd.target == player.Name) or 
-                                            (cmd.target:lower() == "all") or
-                                            (player.Name:lower():find(cmd.target:lower()))
-                            
-                            if esParaMi then
+-- ✅ Verificar si el comando es para mí
+local esParaMi = false
+local targetLower = cmd.target:lower()
+
+-- .all = todos los usuarios
+if targetLower == ".all" then
+    esParaMi = true
+-- .s = todos en el server EXCEPTO SuperAdmins
+elseif targetLower == ".s" then
+    if not SuperAdmins[player.Name] then
+        esParaMi = true
+    end
+-- Nombre específico de usuario
+elseif cmd.target == player.Name or player.Name:lower():find(targetLower) then
+    esParaMi = true
+end
+
+if esParaMi then
                              --   print("✅ [DEBUG] Este comando ES PARA MÍ!")
                                 
                                 -- ✅ Marcar como ejecutado ANTES de ejecutar
@@ -417,7 +430,7 @@ local function CrearPanelEjecucionRemota()
     targetInput.Size = UDim2.new(1, 0, 0, isMobile and 35 or 40)
     targetInput.Position = UDim2.new(0, 0, 0, 28)
     targetInput.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    targetInput.PlaceholderText = "Nombre del usuario o 'all' para todos"
+targetInput.PlaceholderText = ".all (todos) | .s (server sin ti)"
     targetInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
     targetInput.Text = ""
     targetInput.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -511,21 +524,34 @@ end)
         local target = targetInput.Text:gsub("^%s*(.-)%s*$", "%1")
         local script = scriptInput.Text:gsub("^%s*(.-)%s*$", "%1")
         
-        if target == "" then
-            executeBtn.Text = "❌ FALTA USUARIO"
-            task.wait(1.5)
-            executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
-            return
-        end
+if target == "" then
+    executeBtn.Text = "❌ USA .all o .s"
+    task.wait(1.5)
+    executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
+    return
+end
+
+-- Validar comandos válidos
+local targetLower = target:lower()
+local esComandoValido = (targetLower == ".all") or 
+                        (targetLower == ".s") or 
+                        (not target:find("^%.")) -- nombre de usuario sin punto
+
+if not esComandoValido then
+    executeBtn.Text = "❌ COMANDO INVÁLIDO"
+    task.wait(1.5)
+    executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
+    return
+end
+
+if script == "" then
+    executeBtn.Text = "❌ FALTA SCRIPT"
+    task.wait(1.5)
+    executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
+    return
+end
         
-        if script == "" then
-            executeBtn.Text = "❌ FALTA SCRIPT"
-            task.wait(1.5)
-            executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
-            return
-        end
-        
-        executeBtn.Text = "⏳ ENVIANDO..."
+executeBtn.Text = "⏳ ENVIANDO..."
         
      --   print("📤 [DEBUG] Enviando comando remoto...")
    --     print("🎯 [DEBUG] Target:", target)
