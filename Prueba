@@ -466,17 +466,19 @@ local function CrearPanelStickers()
     end)
     
     -- ScrollingFrame para stickers
-    local stickerScroll = Instance.new("ScrollingFrame")
-    stickerScroll.Name = "StickerScroll"
-    stickerScroll.Size = UDim2.new(1, -20, 1, -(isMobile and 50 or 55))
-    stickerScroll.Position = UDim2.new(0, 10, 0, isMobile and 40 or 45)
-    stickerScroll.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    stickerScroll.BackgroundTransparency = 0.5
-    stickerScroll.BorderSizePixel = 0
-    stickerScroll.ScrollBarThickness = isMobile and 4 or 6
-    stickerScroll.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
-    stickerScroll.ZIndex = 26
-    stickerScroll.Parent = stickerPanel
+local stickerScroll = Instance.new("ScrollingFrame")
+stickerScroll.Name = "StickerScroll"
+stickerScroll.Size = UDim2.new(1, -20, 1, -(isMobile and 50 or 55))
+stickerScroll.Position = UDim2.new(0, 10, 0, isMobile and 40 or 45)
+stickerScroll.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+stickerScroll.BackgroundTransparency = 0.5
+stickerScroll.BorderSizePixel = 0
+stickerScroll.ScrollBarThickness = isMobile and 4 or 6
+stickerScroll.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
+stickerScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y  -- ✅ LÍNEA AÑADIDA
+stickerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)           -- ✅ LÍNEA AÑADIDA
+stickerScroll.ZIndex = 26
+stickerScroll.Parent = stickerPanel
     
     local scrollCorner = Instance.new("UICorner", stickerScroll)
     scrollCorner.CornerRadius = UDim.new(0, 8)
@@ -1367,8 +1369,8 @@ function crearChatGUI()
 
 isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
-local frameWidth = isMobile and math.min(viewport.X * 0.85, 340) or 450
-local frameHeight = isMobile and math.min(viewport.Y * 0.55, 400) or 380
+local frameWidth = isMobile and math.min(viewport.X * 0.90, 340) or 450
+local frameHeight = isMobile and math.min(viewport.Y * 0.60, 450) or 380
 
     frame = Instance.new("Frame")
     frame.Name = "MainFrame"
