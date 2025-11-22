@@ -466,7 +466,7 @@ local function CrearPanelEjecucionRemota()
     
     local scriptInput = Instance.new("TextBox")
     scriptInput.Name = "ScriptInput"
-    scriptInput.Size = UDim2.new(1, -10, 1, 0)
+    scriptInput.Size = UDim2.new(1, -10, 0, 160)
     scriptInput.Position = UDim2.new(0, 5, 0, 5)
     scriptInput.BackgroundTransparency = 1
     scriptInput.PlaceholderText = "-- Escribe el script aquí...\nprint('Hola mundo')"
@@ -483,12 +483,14 @@ local function CrearPanelEjecucionRemota()
     scriptInput.ZIndex = 33
     scriptInput.Parent = scriptScroll
     
-    scriptInput:GetPropertyChangedSignal("Text"):Connect(function()
-        local lines = select(2, scriptInput.Text:gsub("\n", "\n")) + 1
-        local lineHeight = scriptInput.TextSize + 5
-        scriptInput.Size = UDim2.new(1, -10, 0, math.max(lines * lineHeight, scriptScroll.AbsoluteSize.Y - 10))
-    end)
-    
+scriptInput:GetPropertyChangedSignal("Text"):Connect(function()
+    local lines = select(2, scriptInput.Text:gsub("\n", "\n")) + 1
+    local lineHeight = scriptInput.TextSize + 8
+    local newHeight = math.max(lines * lineHeight + 20, scriptScroll.AbsoluteSize.Y)
+    scriptInput.Size = UDim2.new(1, -10, 0, newHeight)
+    scriptScroll.CanvasSize = UDim2.new(0, 0, 0, newHeight + 10)
+end)
+
     local executeBtn = Instance.new("TextButton")
     executeBtn.Name = "ExecuteButton"
     executeBtn.Size = UDim2.new(1, 0, 0, isMobile and 40 or 45)
@@ -2622,4 +2624,3 @@ game:GetService("Players").PlayerRemoving:Connect(function(plr)
         end)
     end
 end)
-
