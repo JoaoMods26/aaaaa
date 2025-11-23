@@ -634,13 +634,15 @@ end
 
 -- SISTEMA DE CONFIGURACIÓN
 local function CargarConfiguracion()
+    local defaultConfig = {
+        Transparency = 0,
+        ImageId = "",
+        PosicionX = 0.05,
+        PosicionY = 0.3
+    }
+    
     if not isfile or not isfile("JXNULL_CONFIGS/Config.json") then
-        return {
-            Transparency = 0,
-            ImageId = "",
-            PosicionX = 0.05,
-            PosicionY = 0.3
-        }
+        return defaultConfig
     end
     
     local contenido = readfile("JXNULL_CONFIGS/Config.json")
@@ -649,32 +651,39 @@ local function CargarConfiguracion()
             return HttpService:JSONDecode(contenido)
         end)
         
-        if success then
+        if success and typeof(datos) == "table" then
+            -- ✅ VALIDACIÓN ESTRICTA: Solo valores entre 0 y 1 son seguros
             if datos.PosicionX then
-                datos.PosicionX = math.clamp(datos.PosicionX, -0.5, 1.5)
+                datos.PosicionX = math.clamp(datos.PosicionX, 0, 0.95)
+            else
+                datos.PosicionX = defaultConfig.PosicionX
             end
+            
             if datos.PosicionY then
-                datos.PosicionY = math.clamp(datos.PosicionY, -0.5, 1.5)
+                datos.PosicionY = math.clamp(datos.PosicionY, 0, 0.95)
+            else
+                datos.PosicionY = defaultConfig.PosicionY
             end
+            
+            -- ✅ Asegurar que otros valores existan
+            datos.Transparency = datos.Transparency or defaultConfig.Transparency
+            datos.ImageId = datos.ImageId or defaultConfig.ImageId
+            
             return datos
         end
     end
     
-    return {
-        Transparency = 0,
-        ImageId = "",
-        PosicionX = 0.05,
-        PosicionY = 0.3
-    }
+    return defaultConfig
 end
 
 local function GuardarConfiguracion(datos)
     if writefile then
+        -- ✅ VALIDACIÓN ESTRICTA al guardar: Solo 0-0.95 para evitar que salga de pantalla
         if datos.PosicionX then
-            datos.PosicionX = math.clamp(datos.PosicionX, -0.5, 1.5)
+            datos.PosicionX = math.clamp(datos.PosicionX, 0, 0.95)
         end
         if datos.PosicionY then
-            datos.PosicionY = math.clamp(datos.PosicionY, -0.5, 1.5)
+            datos.PosicionY = math.clamp(datos.PosicionY, 0, 0.95)
         end
         
         local json = HttpService:JSONEncode(datos)
@@ -1690,14 +1699,28 @@ function crearChatGUI()
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     gui.Parent = CoreGui
 
-    local viewport = workspace.CurrentCamera.ViewportSize
-    local posX = (config.PosicionX or 0.05) * viewport.X
-    local posY = (config.PosicionY or 0.3) * viewport.Y
-
+local viewport = workspace.CurrentCamera.ViewportSize
+    
     isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
     local frameWidth = isMobile and math.min(viewport.X * 0.90, 340) or 450
     local frameHeight = isMobile and math.min(viewport.Y * 0.60, 450) or 380
+
+    -- ✅ CALCULAR POSICIÓN CON VALIDACIÓN
+    local posX = (config.PosicionX or 0.05) * viewport.X
+    local posY = (config.PosicionY or 0.3) * viewport.Y
+    
+    -- ✅ VALIDACIÓN CRÍTICA: Asegurar que SIEMPRE esté visible en pantalla
+    posX = math.clamp(posX, 10, viewport.X - frameWidth - 10)
+    posY = math.clamp(posY, 10, viewport.Y - frameHeight - 10)
+    
+    -- ✅ Si después de validar está fuera de límites, usar posición por defecto
+    if posX < 10 or posX > viewport.X - frameWidth - 10 then
+        posX = viewport.X * 0.05
+    end
+    if posY < 10 or posY > viewport.Y - frameHeight - 10 then
+        posY = viewport.Y * 0.3
+    end
 
     frame = Instance.new("Frame")
     frame.Name = "MainFrame"
@@ -1708,12 +1731,6 @@ function crearChatGUI()
     frame.ClipsDescendants = false
     frame.ZIndex = 1
     frame.Parent = gui
-
-    if isMobile then
-        local mobileX = math.clamp(posX, 10, viewport.X - frameWidth - 10)
-        local mobileY = math.clamp(posY, 10, viewport.Y - frameHeight - 10)
-        frame.Position = UDim2.new(0, mobileX, 0, mobileY)
-    end
 
     local corner = Instance.new("UICorner", frame)
     corner.CornerRadius = UDim.new(0, 12)
@@ -2023,7 +2040,7 @@ function crearChatGUI()
         end
     end
 
-    titleBar.InputBegan:Connect(function(input)
+titleBar.InputBegan:Connect(function(input)
         if not frame or not frame.Parent then return end
         
         if input.UserInputType == Enum.UserInputType.MouseButton1 or 
@@ -2040,8 +2057,12 @@ function crearChatGUI()
                         local viewport = workspace.CurrentCamera.ViewportSize
                         local newConfig = CargarConfiguracion()
                         
-                        newConfig.PosicionX = frame.Position.X.Offset / viewport.X
-                        newConfig.PosicionY = frame.Position.Y.Offset / viewport.Y
+                        -- ✅ GUARDAR POSICIÓN VALIDADA (0-0.95)
+                        local posXNormalized = frame.Position.X.Offset / viewport.X
+                        local posYNormalized = frame.Position.Y.Offset / viewport.Y
+                        
+                        newConfig.PosicionX = math.clamp(posXNormalized, 0, 0.95)
+                        newConfig.PosicionY = math.clamp(posYNormalized, 0, 0.95)
                         
                         GuardarConfiguracion(newConfig)
                     end
