@@ -2535,6 +2535,7 @@ titleBar.InputBegan:Connect(function(input)
         end
     end)
 
+-- ✅ CARGA INICIAL CON PROTECCIÓN ANTI-DUPLICADOS
     task.spawn(function()
         local success, response = pcall(function()
             return request({
@@ -2549,7 +2550,16 @@ titleBar.InputBegan:Connect(function(input)
             end)
             
             if ok and typeof(decoded) == "table" then
+                -- ✅ MOSTRAR los mensajes PRIMERO
                 showMessages(decoded)
+                
+                -- ✅ Esperar un frame para que se rendericen
+                task.wait()
+                
+                -- ✅ AHORA SÍ marcarlos para evitar duplicados del loop
+                for key, _ in pairs(decoded) do
+                    mensajesMostrados[key] = true
+                end
             end
         end
     end)
@@ -2626,7 +2636,7 @@ task.spawn(function()
             end
         end
 
-        task.wait(2.5)
+        task.wait(0.2)
     end
 end)
 
