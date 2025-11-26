@@ -39,6 +39,7 @@ local primeraVez = true
 local escuchaActiva = false
 local isMobile = false
 local isMinimized = false
+local cargaInicialCompletada = false
 
 -- Variables para stickers
 local stickerPanel = nil
@@ -1030,6 +1031,12 @@ end
 local function showMessages(data)
     if not chatBox then return end
 
+    -- ✅ NUEVO: Prevenir procesamiento simultáneo
+    if _G.CHAT_PROCESANDO_MENSAJES then
+        return
+    end
+    _G.CHAT_PROCESANDO_MENSAJES = true
+
     local mensajes = {}
     for key, value in pairs(data or {}) do
         value._id = key
@@ -1052,11 +1059,18 @@ local function showMessages(data)
         estoyAlFinal = (posicionActual + alturaVentana) >= (alturaTotal - 20)
     end
 
-    local mensajesNuevos = {}
+local mensajesNuevos = {}
     for _, msg in ipairs(mensajes) do
-        if not mensajesMostrados[msg._id] then
+        -- ✅ VERIFICACIÓN MEJORADA: Revisar si ya existe visualmente
+        if not mensajesMostrados[msg._id] and not chatBox:FindFirstChild("MessageContainer_" .. msg._id) then
             table.insert(mensajesNuevos, msg)
         end
+    end
+
+    -- ✅ NUEVO: Si no hay mensajes nuevos, liberar y salir
+    if #mensajesNuevos == 0 then
+        _G.CHAT_PROCESANDO_MENSAJES = false
+        return
     end
 
     for _, msg in ipairs(mensajesNuevos) do
@@ -1652,7 +1666,7 @@ local function showMessages(data)
         }):Play()
     end
 
-    task.wait(0.1)
+task.wait(0.1)
     if estoyAlFinal and chatBox then
         chatBox.CanvasPosition = Vector2.new(0, chatBox.AbsoluteCanvasSize.Y)
         
@@ -1660,6 +1674,9 @@ local function showMessages(data)
             primeraVez = false
         end
     end
+
+    -- ✅ NUEVO: Liberar el lock al final
+    _G.CHAT_PROCESANDO_MENSAJES = false
 end
 
 local function EnviarNotificacionRespuesta(targetUsername, responderUsername, mensaje)
@@ -1735,6 +1752,7 @@ function crearChatGUI()
     end
 
     primeraVez = true
+    cargaInicialCompletada = false  -- ✅ NUEVO
     stickersGuardados = CargarStickers()
     isMinimized = false
 
@@ -2535,7 +2553,10 @@ titleBar.InputBegan:Connect(function(input)
         end
     end)
 
-    task.spawn(function()
+task.spawn(function()
+        -- ✅ NUEVO: Esperar un momento para evitar race condition
+        task.wait(0.5)
+        
         local success, response = pcall(function()
             return request({
                 Url = firebaseURL,
@@ -2550,6 +2571,7 @@ titleBar.InputBegan:Connect(function(input)
             
             if ok and typeof(decoded) == "table" then
                 showMessages(decoded)
+                cargaInicialCompletada = true  -- ✅ NUEVO
             end
         end
     end)
@@ -2558,10 +2580,17 @@ titleBar.InputBegan:Connect(function(input)
 end
 
 -- SISTEMA DE ESCUCHA EN TIEMPO REAL
+-- SISTEMA DE ESCUCHA EN TIEMPO REAL
 task.spawn(function()
     while true do
         if not escuchaActiva then
             task.wait(2)
+            continue
+        end
+
+        -- ✅ NUEVO: No procesar hasta que la carga inicial termine
+        if not cargaInicialCompletada then
+            task.wait(1)
             continue
         end
 
@@ -2661,16 +2690,17 @@ task.spawn(function()
             CurrentValue = false,
             Flag = "GlobalChatToggle",
             Callback = function(state)
-                if state then
-                    if guiActivo and gui and gui.Parent then
-                        warn("⚠️ Chat global ya está activo.")
-                        return
-                    end
+if state then
+            if guiActivo and gui and gui.Parent then
+                warn("⚠️ Chat global ya está activo.")
+                return
+            end
 
-                    guiActivo = true
-                    escuchaActiva = true
+            guiActivo = true
+            escuchaActiva = true
+            cargaInicialCompletada = false  -- ✅ NUEVO: Resetear flag
 
-                    pcall(function()
+            pcall(function()
                         local old = CoreGui:FindFirstChild("JXNullChat_V2")
                         if old then old:Destroy() end
                     end)
@@ -2686,11 +2716,13 @@ task.spawn(function()
                     end
 
                 else
-                    if not guiActivo then return end
-                    
-                    guiActivo = false
 
-                    if not ShowChatNotify then
+            if not guiActivo then return end
+            
+            guiActivo = false
+            cargaInicialCompletada = false  -- ✅ NUEVO: Resetear flag
+
+            if not ShowChatNotify then
                         escuchaActiva = false
                     end
 
