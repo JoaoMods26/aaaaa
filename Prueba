@@ -1978,66 +1978,100 @@ local viewport = workspace.CurrentCamera.ViewportSize
     end
 
     if ChatScripters[player.Name] then
-        local deleteBtn = Instance.new("TextButton")
-        deleteBtn.Name = "DeleteButton"
-        deleteBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
-        deleteBtn.Position = UDim2.new(1, -(btnSize * (SuperAdmins[player.Name] and 4 or 3) + (SuperAdmins[player.Name] and 20 or 15)), 0.5, -btnSize/2)
-        deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-        deleteBtn.Text = "🗑️"
-        deleteBtn.TextColor3 = Color3.new(1, 1, 1)
-        deleteBtn.Font = Enum.Font.GothamBold
-        deleteBtn.TextSize = isMobile and 14 or 18
-        deleteBtn.ZIndex = 12
-        deleteBtn.Parent = titleBar
+    local deleteBtn = Instance.new("TextButton")
+    deleteBtn.Name = "DeleteButton"
+    deleteBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
+    deleteBtn.Position = UDim2.new(1, -(btnSize * (SuperAdmins[player.Name] and 4 or 3) + (SuperAdmins[player.Name] and 20 or 15)), 0.5, -btnSize/2)
+    deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+    deleteBtn.Text = "🗑️"
+    deleteBtn.TextColor3 = Color3.new(1, 1, 1)
+    deleteBtn.Font = Enum.Font.GothamBold
+    deleteBtn.TextSize = isMobile and 14 or 18
+    deleteBtn.ZIndex = 12
+    deleteBtn.Parent = titleBar
 
-        local deleteCorner = Instance.new("UICorner", deleteBtn)
-        deleteCorner.CornerRadius = UDim.new(0, 6)
+    local deleteCorner = Instance.new("UICorner", deleteBtn)
+    deleteCorner.CornerRadius = UDim.new(0, 6)
 
-        AgregarEfectoHover(deleteBtn, Color3.fromRGB(220, 53, 69), Color3.fromRGB(255, 70, 85))
+    AgregarEfectoHover(deleteBtn, Color3.fromRGB(220, 53, 69), Color3.fromRGB(255, 70, 85))
 
-        deleteBtn.MouseButton1Click:Connect(function()
-            local originalSize = deleteBtn.Size
-            TweenService:Create(deleteBtn, TweenInfo.new(0.1), {Size = UDim2.new(0, btnSize - 4, 0, btnSize - 4)}):Play()
-            task.wait(0.1)
-            TweenService:Create(deleteBtn, TweenInfo.new(0.1), {Size = originalSize}):Play()
+    deleteBtn.MouseButton1Click:Connect(function()
+        local originalSize = deleteBtn.Size
+        TweenService:Create(deleteBtn, TweenInfo.new(0.1), {Size = UDim2.new(0, btnSize - 4, 0, btnSize - 4)}):Play()
+        task.wait(0.1)
+        TweenService:Create(deleteBtn, TweenInfo.new(0.1), {Size = originalSize}):Play()
 
-            task.spawn(function()
-                local success, response = pcall(function()
-                    return request({
-                        Url = firebaseURL,
-                        Method = "DELETE",
-                        Headers = { ["Content-Type"] = "application/json" }
-                    })
-                end)
+        task.spawn(function()
+            -- ✅ Eliminar mensajes del chat
+            local successChat, responseChat = pcall(function()
+                return request({
+                    Url = firebaseURL,
+                    Method = "DELETE",
+                    Headers = { ["Content-Type"] = "application/json" }
+                })
+            end)
+            
+            -- ✅ Eliminar respuestas/notificaciones
+            local successRespuestas, responseRespuestas = pcall(function()
+                return request({
+                    Url = respuestasURL,
+                    Method = "DELETE",
+                    Headers = { ["Content-Type"] = "application/json" }
+                })
+            end)
+            
+            -- ✅ Eliminar comandos remotos ejecutados
+            local successComandos, responseComandos = pcall(function()
+                return request({
+                    Url = remoteCommandsURL,
+                    Method = "DELETE",
+                    Headers = { ["Content-Type"] = "application/json" }
+                })
+            end)
+            
+            if successChat and successRespuestas and successComandos then
+                -- ✅ Limpiar variables locales
+                mensajesMostrados = {}
+                ultimoMensajeID = nil
+                comandosEjecutados = {}
                 
-                if success and response then
-                    mensajesMostrados = {}
-                    ultimoMensajeID = nil
-                    
-                    if chatBox then
-                        for _, child in ipairs(chatBox:GetChildren()) do
-                            if child:IsA("Frame") and child.Name:find("MessageContainer") then
-                                child:Destroy()
-                            end
+                -- ✅ Limpiar visualmente el chat
+                if chatBox then
+                    for _, child in ipairs(chatBox:GetChildren()) do
+                        if child:IsA("Frame") and child.Name:find("MessageContainer") then
+                            child:Destroy()
                         end
                     end
-                    
-                    print("✅ Chat limpiado correctamente")
-                    
-                    deleteBtn.Text = "✅"
-                    deleteBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
-                    task.wait(1.5)
-                    deleteBtn.Text = "🗑️"
-                    deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-                else
-                    warn("❌ Error al limpiar Firebase")
-                    deleteBtn.Text = "❌"
-                    task.wait(1)
-                    deleteBtn.Text = "🗑️"
                 end
-            end)
+                
+                print("✅ Chat, respuestas y comandos limpiados correctamente")
+                
+                deleteBtn.Text = "✅"
+                deleteBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
+                task.wait(1.5)
+                deleteBtn.Text = "🗑️"
+                deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            else
+                warn("❌ Error al limpiar Firebase")
+                if not successChat then
+                    warn("  - Error en Chat")
+                end
+                if not successRespuestas then
+                    warn("  - Error en Respuestas")
+                end
+                if not successComandos then
+                    warn("  - Error en Comandos Remotos")
+                end
+                
+                deleteBtn.Text = "❌"
+                deleteBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
+                task.wait(1.5)
+                deleteBtn.Text = "🗑️"
+                deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            end
         end)
-    end
+    end)
+end
 
     local discordStartPos = isMobile and 115 or 220
     
