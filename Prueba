@@ -47,6 +47,7 @@ local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
+local TeleportService = game:GetService("TeleportService")
 
 local player = Players.LocalPlayer
 
@@ -77,6 +78,15 @@ local misRespuestasPendientes = {}
 local remoteExecutionPanel = nil
 local ultimoComandoID = nil
 local comandosEjecutados = {} -- ✅ NUEVO: Para evitar ejecutar el mismo comando varias veces
+
+
+-- NUEVAS VARIABLES PARA SISTEMA DE UNIRSE
+local allowJoinToggleBtn = nil
+local allowJoinActive = false
+local joinTimerConnection = nil
+local serverJoinDataURL = "https://jxnc-60014-default-rtdb.firebaseio.com/ServerJoinData.json"
+local usersServerData = {} -- Cache local de datos de servidor
+
 
 -- URLs de Firebase
 -- Chat principal
@@ -322,6 +332,301 @@ end
 -- ✅ INICIAR ESCUCHA INMEDIATAMENTE
 escuchaActiva = true
 EscucharComandosRemotos()
+
+-- 🚀 FUNCIONES DEL SISTEMA DE UNIRSE AL SERVIDOR
+
+-- Publicar datos del servidor en Firebase
+local function PublicarDatosServidor()
+    if not allowJoinActive then return end
+    
+    task.spawn(function()
+        -- ✅ ASEGURAR que placeId sea número y jobId sea string
+        local currentPlaceId = tonumber(game.PlaceId)
+        local currentJobId = tostring(game.JobId)
+        
+        if not currentPlaceId or currentJobId == "" then
+            warn("❌ No se pudo obtener PlaceId o JobId")
+            return
+        end
+        
+        local serverData = {
+            username = player.Name,
+            placeId = currentPlaceId,
+            jobId = currentJobId,
+            timestamp = os.time(),
+            gameName = game:GetService("MarketplaceService"):GetProductInfo(currentPlaceId).Name or "Unknown"
+        }
+        
+        local json = HttpService:JSONEncode(serverData)
+        
+        local success = pcall(function()
+            request({
+                Url = "https://jxnc-60014-default-rtdb.firebaseio.com/ServerJoinData/" .. player.Name .. ".json",
+                Method = "PUT",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = json
+            })
+        end)
+        
+        if success then
+            print("✅ Datos de servidor publicados - PlaceId:", currentPlaceId, "JobId:", currentJobId)
+        else
+            warn("❌ Error al publicar datos del servidor")
+        end
+    end)
+end
+
+
+
+
+
+-- Limpiar datos del servidor cuando se desactive
+local function LimpiarDatosServidor()
+    task.spawn(function()
+        pcall(function()
+            request({
+                Url = "https://jxnc-60014-default-rtdb.firebaseio.com/ServerJoinData/" .. player.Name .. ".json",
+                Method = "DELETE"
+            })
+        end)
+    end)
+end
+
+-- Activar toggle de unirse (3 minutos)
+local function ActivarAllowJoin()
+    if allowJoinActive then return end
+    
+    allowJoinActive = true
+    
+    -- Publicar datos inmediatamente
+    PublicarDatosServidor()
+    
+    -- ✅ CORREGIDO: Variable única para el loop de actualización
+    local updateLoop = task.spawn(function()
+        while allowJoinActive do
+            task.wait(30)
+            if allowJoinActive then
+                PublicarDatosServidor()
+            end
+        end
+    end)
+    
+    -- Actualizar UI del botón
+    if allowJoinToggleBtn then
+        allowJoinToggleBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
+        allowJoinToggleBtn.Text = "✅"
+        
+        -- Animación de pulso
+        task.spawn(function()
+            while allowJoinActive and allowJoinToggleBtn and allowJoinToggleBtn.Parent do
+                TweenService:Create(allowJoinToggleBtn, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+                    BackgroundColor3 = Color3.fromRGB(87, 201, 149)
+                }):Play()
+                task.wait(0.8)
+            end
+        end)
+    end
+    
+    -- Desactivar después de 3 minutos
+    if joinTimerConnection then
+        task.cancel(joinTimerConnection)
+    end
+    
+    joinTimerConnection = task.delay(180, function() -- 3 minutos = 180 segundos
+        print("⏰ Tiempo de unirse expirado - Desactivando...")
+        DesactivarAllowJoin()
+    end)
+    
+    print("✅ Toggle de unirse ACTIVADO por 3 minutos")
+end
+
+-- Desactivar toggle de unirse
+function DesactivarAllowJoin()
+    if not allowJoinActive then return end
+    
+    allowJoinActive = false
+    
+    -- ✅ SOLO limpiar MIS PROPIOS datos, no los de otros usuarios
+    print("🧹 Limpiando solo MIS datos del servidor...")
+    LimpiarDatosServidor()
+    
+    -- Actualizar UI del botón SI EXISTE
+    if allowJoinToggleBtn and allowJoinToggleBtn.Parent then
+        allowJoinToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+        allowJoinToggleBtn.Text = "🔗"
+    end
+    
+    -- Cancelar timer si existe
+    if joinTimerConnection then
+        task.cancel(joinTimerConnection)
+        joinTimerConnection = nil
+    end
+    
+    print("❌ Toggle de unirse DESACTIVADO")
+end
+
+-- Obtener datos de servidor de un usuario específico
+local function ObtenerDatosServidorUsuario(username)
+    local success, response = pcall(function()
+        return request({
+            Url = "https://jxnc-60014-default-rtdb.firebaseio.com/ServerJoinData/" .. username .. ".json",
+            Method = "GET"
+        })
+    end)
+    
+    if success and response and response.Body then
+        local ok, data = pcall(function()
+            return HttpService:JSONDecode(response.Body)
+        end)
+        
+        if ok and typeof(data) == "table" then
+            -- Verificar que los datos no sean muy viejos (más de 3.5 minutos)
+            local currentTime = os.time()
+            if data.timestamp and (currentTime - data.timestamp) <= 210 then -- 3.5 minutos
+                return data
+            end
+        end
+    end
+    
+    return nil
+end
+
+
+-- Unirse al servidor de un usuario
+local function UnirseAServidor(username)
+    task.spawn(function()
+        print("🔍 Obteniendo datos de servidor de:", username)
+        local serverData = ObtenerDatosServidorUsuario(username)
+        
+        if not serverData then
+            print("❌ No se encontraron datos para:", username)
+            if _G.Rayfield and _G.Rayfield.Notify then
+                _G.Rayfield:Notify({
+                    Title = "❌ No Disponible",
+                    Content = username .. " no permite unirse en este momento",
+                    Duration = 3,
+                    Image = 4483362458
+                })
+            end
+            return
+        end
+        
+        print("📊 Datos obtenidos:", serverData.placeId, serverData.jobId)
+        
+        local placeId = tonumber(serverData.placeId)
+        local jobId = tostring(serverData.jobId)
+        
+        print("🔄 Después de conversión - PlaceId:", placeId, "tipo:", type(placeId))
+        print("🔄 Después de conversión - JobId:", jobId, "tipo:", type(jobId), "length:", #jobId)
+        
+        if not placeId or not jobId or jobId == "" then
+            print("❌ Validación fallida - PlaceId válido:", placeId ~= nil, "JobId válido:", jobId ~= "" and jobId ~= nil)
+            if _G.Rayfield and _G.Rayfield.Notify then
+                _G.Rayfield:Notify({
+                    Title = "❌ Error",
+                    Content = "Datos del servidor incompletos",
+                    Duration = 3,
+                    Image = 4483362458
+                })
+            end
+            return
+        end
+        
+        -- Notificar que se está uniendo
+        print("✅ Datos válidos - Iniciando teleport...")
+        if _G.Rayfield and _G.Rayfield.Notify then
+            _G.Rayfield:Notify({
+                Title = "🚀 Uniéndose...",
+                Content = "Conectando al servidor de " .. username,
+                Duration = 3,
+                Image = 4483362458
+            })
+        end
+        
+        -- Esperar un momento antes de teleportar
+        task.wait(0.5)
+        
+        -- ✅ CORREGIDO: Usar correctamente TeleportToPlaceInstance
+        print("🚀 Ejecutando TeleportToPlaceInstance...")
+        local success, err = pcall(function()
+            TeleportService:TeleportToPlaceInstance(placeId, jobId, player)
+        end)
+        
+        if not success then
+            warn("❌ Error al unirse al servidor:", err)
+            warn("📊 PlaceId:", placeId, "| JobId:", jobId)
+            
+            if _G.Rayfield and _G.Rayfield.Notify then
+                _G.Rayfield:Notify({
+                    Title = "❌ Error al Unirse",
+                    Content = "No se pudo conectar: " .. tostring(err):sub(1, 40),
+                    Duration = 4,
+                    Image = 4483362458
+                })
+            end
+        else
+            print("✅ Teleport iniciado correctamente")
+        end
+    end)
+end
+
+
+
+-- Actualizar cache de datos de servidor (ejecutar periódicamente)
+local function ActualizarCacheServidores()
+    task.spawn(function()
+        while escuchaActiva do
+            local success, response = pcall(function()
+                return request({
+                    Url = serverJoinDataURL,
+                    Method = "GET"
+                })
+            end)
+            
+            if success and response and response.Body then
+                local ok, data = pcall(function()
+                    return HttpService:JSONDecode(response.Body)
+                end)
+                
+                if ok and typeof(data) == "table" then
+                    usersServerData = data
+                    
+                    -- 🔍 DEBUG: Mostrar usuarios con datos disponibles
+                    local count = 0
+                    for username, serverData in pairs(usersServerData) do
+                        count = count + 1
+                    end
+                    
+                    if count > 0 then
+                        print("📡 Cache actualizado -", count, "usuarios con servidor disponible")
+                    end
+                    
+                    -- Limpiar datos viejos (más de 4 minutos)
+                    local currentTime = os.time()
+                    for username, serverData in pairs(usersServerData) do
+                        if serverData.timestamp and (currentTime - serverData.timestamp) > 240 then
+                            print("🧹 Limpiando datos antiguos de:", username)
+                            usersServerData[username] = nil
+                            
+                            -- Eliminar de Firebase también
+                            pcall(function()
+                                request({
+                                    Url = "https://jxnc-60014-default-rtdb.firebaseio.com/ServerJoinData/" .. username .. ".json",
+                                    Method = "DELETE"
+                                })
+                            end)
+                        end
+                    end
+                end
+            end
+            
+            task.wait(10) -- Actualizar cada 10 segundos
+        end
+    end)
+end
+
+-- 🚀 INICIAR ACTUALIZACIÓN DE CACHE
+ActualizarCacheServidores()
 
 local function CrearPanelEjecucionRemota()
     if remoteExecutionPanel and remoteExecutionPanel.Parent then
@@ -1253,8 +1558,122 @@ local mensajesNuevos = {}
         avatar.ZIndex = 4
         avatar.Parent = avatarContainer
 
-        local avatarImgCorner = Instance.new("UICorner", avatar)
+    local avatarImgCorner = Instance.new("UICorner", avatar)
         avatarImgCorner.CornerRadius = UDim.new(0, (avatarSize-4)/2)
+
+        -- 🚀 BOTÓN DE UNIRSE (SOLO SI EL USUARIO TIENE EL TOGGLE ACTIVO)
+        local joinButton = Instance.new("TextButton")
+        joinButton.Name = "JoinButton"
+        joinButton.Size = UDim2.new(0, avatarSize + 10, 0, 24)
+        joinButton.Position = UDim2.new(0, -5, 1, 5)
+        joinButton.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
+        joinButton.Text = "🚀 Unirse"
+        joinButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        joinButton.Font = Enum.Font.GothamBold
+        joinButton.TextSize = isMobile and 9 or 10
+        joinButton.BorderSizePixel = 0
+        joinButton.ZIndex = 5
+        joinButton.Visible = false
+        joinButton.Parent = avatarContainer
+
+        local joinBtnCorner = Instance.new("UICorner", joinButton)
+        joinBtnCorner.CornerRadius = UDim.new(0, 6)
+
+-- Mostrar botón solo si el usuario tiene datos de servidor disponibles
+        local isHoveringAvatar = false
+        local isHoveringButton = false
+        
+        local function updateButtonVisibility()
+            if isHoveringAvatar or isHoveringButton then
+                joinButton.Visible = true
+            else
+                joinButton.Visible = false
+            end
+        end
+        
+-- 🚀 Sistema de CLICK: Mostrar/ocultar botón al hacer click en avatar
+        local joinButtonVisible = false
+        
+        -- ✅ Verificar si el usuario tiene datos disponibles y mostrar botón
+        task.spawn(function()
+            task.wait(0.5) -- Esperar a que se cargue el cache
+            if usersServerData[username] then
+                local serverData = usersServerData[username]
+                local currentTime = os.time()
+                
+                -- Verificar que los datos no sean muy viejos (3.5 minutos)
+                if serverData.timestamp and (currentTime - serverData.timestamp) <= 210 then
+                    -- El usuario tiene datos válidos, permitir mostrar el botón
+                    print("✅ " .. username .. " tiene datos de servidor válidos")
+                end
+            end
+        end)
+        
+        -- Click en el avatar para mostrar botón
+        local avatarButton = Instance.new("TextButton")
+        avatarButton.Size = UDim2.new(1, 0, 1, 0)
+        avatarButton.BackgroundTransparency = 1
+        avatarButton.Text = ""
+        avatarButton.ZIndex = 6
+        avatarButton.Parent = avatarContainer
+        
+        avatarButton.MouseButton1Click:Connect(function()
+            print("🖱️ Click en avatar de:", username)
+            
+            -- Verificar si el usuario tiene datos de servidor activos
+            if usersServerData[username] then
+                local serverData = usersServerData[username]
+                local currentTime = os.time()
+                
+                print("📊 Datos encontrados para", username, "- PlaceId:", serverData.placeId, "JobId:", serverData.jobId, "Timestamp:", serverData.timestamp)
+                
+                -- Verificar que los datos no sean muy viejos (3.5 minutos)
+                if serverData.timestamp and (currentTime - serverData.timestamp) <= 210 then
+                    joinButtonVisible = not joinButtonVisible
+                    joinButton.Visible = joinButtonVisible
+                    
+                    print(joinButtonVisible and "✅ Botón de unirse VISIBLE" or "❌ Botón de unirse OCULTO")
+                    
+                    if joinButtonVisible then
+                        TweenService:Create(joinButton, TweenInfo.new(0.2), {
+                            BackgroundColor3 = Color3.fromRGB(87, 201, 149)
+                        }):Play()
+                    end
+                else
+                    print("⏰ Datos muy antiguos para", username)
+                    if _G.Rayfield and _G.Rayfield.Notify then
+                        _G.Rayfield:Notify({
+                            Title = "❌ Tiempo Expirado",
+                            Content = username .. " ya no permite unirse",
+                            Duration = 3,
+                            Image = 4483362458
+                        })
+                    end
+                end
+            else
+                print("❌ No hay datos de servidor para", username)
+                if _G.Rayfield and _G.Rayfield.Notify then
+                    _G.Rayfield:Notify({
+                        Title = "❌ No Disponible",
+                        Content = username .. " no permite unirse",
+                        Duration = 3,
+                        Image = 4483362458
+                    })
+                end
+            end
+        end)
+        
+        -- Click en el botón "Unirse" para teleportar
+        joinButton.MouseButton1Click:Connect(function()
+            print("🚀 Intentando unirse al servidor de:", username)
+            UnirseAServidor(username)
+            joinButton.Visible = false
+            joinButtonVisible = false
+        end)
+        
+
+        
+ 
 
         local messageFrame = Instance.new("Frame")
         messageFrame.Name = "MessageFrame"
@@ -1902,8 +2321,8 @@ local viewport = workspace.CurrentCamera.ViewportSize
         end
     end)
 
-    local btnSize = isMobile and 26 or 32
-    local btnSpacing = isMobile and 30 or 38
+local btnSize = isMobile and 22 or 28
+    local btnSpacing = isMobile and 26 or 32
 
     local minimizeBtn = Instance.new("TextButton")
     minimizeBtn.Name = "MinimizeButton"
@@ -2101,8 +2520,58 @@ local viewport = workspace.CurrentCamera.ViewportSize
     end)
 end
 
-    local discordStartPos = isMobile and 115 or 220
+ local discordStartPos = isMobile and 115 or 220
     
+    -- 🚀 NUEVO: BOTÓN DE PERMITIR UNIRSE
+    allowJoinToggleBtn = Instance.new("TextButton")
+    allowJoinToggleBtn.Name = "AllowJoinButton"
+    allowJoinToggleBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
+    allowJoinToggleBtn.Position = UDim2.new(0, discordStartPos, 0.5, -btnSize/2)
+    allowJoinToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    allowJoinToggleBtn.Text = "🔗"
+    allowJoinToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    allowJoinToggleBtn.Font = Enum.Font.GothamBold
+    allowJoinToggleBtn.TextSize = isMobile and 14 or 16
+    allowJoinToggleBtn.BorderSizePixel = 0
+    allowJoinToggleBtn.ZIndex = 12
+    allowJoinToggleBtn.Parent = titleBar
+
+    local allowJoinCorner = Instance.new("UICorner", allowJoinToggleBtn)
+    allowJoinCorner.CornerRadius = UDim.new(0, 6)
+
+    AgregarEfectoHover(
+        allowJoinToggleBtn,
+        Color3.fromRGB(50, 50, 60),
+        Color3.fromRGB(70, 70, 80)
+    )
+
+allowJoinToggleBtn.MouseButton1Click:Connect(function()
+        if not allowJoinActive then
+            ActivarAllowJoin()
+        else
+            DesactivarAllowJoin()
+        end
+    end)
+
+    -- 🚀 NUEVO: Restaurar estado visual del botón si estaba activo
+    if allowJoinActive then
+        allowJoinToggleBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
+        allowJoinToggleBtn.Text = "✅"
+        
+        -- Reiniciar animación de pulso
+        task.spawn(function()
+            while allowJoinActive and allowJoinToggleBtn and allowJoinToggleBtn.Parent do
+                TweenService:Create(allowJoinToggleBtn, TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut, -1, true), {
+                    BackgroundColor3 = Color3.fromRGB(87, 201, 149)
+                }):Play()
+                task.wait(0.8)
+            end
+        end)
+    end
+
+    -- Ajustar posición de los botones de Discord
+    discordStartPos = discordStartPos + btnSpacing
+       
     local discordBtn = Instance.new("ImageButton")
     discordBtn.Name = "DiscordButton1"
     discordBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
@@ -2777,12 +3246,12 @@ if state then
                         return
                     end
 
-                else
+ else
 
             if not guiActivo then return end
             
             guiActivo = false
-            cargaInicialCompletada = false  -- ✅ NUEVO: Resetear flag
+            cargaInicialCompletada = false
 
             if not ShowChatNotify then
                         escuchaActiva = false
@@ -2820,6 +3289,11 @@ end)
 -- CLEANUP AL SALIR
 game:GetService("Players").PlayerRemoving:Connect(function(plr)
     if plr == player then
+        -- 🚀 Limpiar datos de servidor al salir
+        if allowJoinActive then
+            LimpiarDatosServidor()
+        end
+        
         pcall(function()
             if gui then 
                 gui:Destroy() 
