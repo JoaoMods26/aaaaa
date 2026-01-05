@@ -547,7 +547,7 @@ local function UnirseAServidor(username)
         task.wait(0.5)
         
         -- ✅ CORREGIDO: Usar correctamente TeleportToPlaceInstance
-        print("🚀 Ejecutando TeleportToPlaceInstance...")
+    --    print("🚀 Ejecutando TeleportToPlaceInstance...")
         local success, err = pcall(function()
             TeleportService:TeleportToPlaceInstance(placeId, jobId, player)
         end)
@@ -605,7 +605,7 @@ local function ActualizarCacheServidores()
                     local currentTime = os.time()
                     for username, serverData in pairs(usersServerData) do
                         if serverData.timestamp and (currentTime - serverData.timestamp) > 240 then
-                            print("🧹 Limpiando datos antiguos de:", username)
+              --              print("🧹 Limpiando datos antiguos de:", username)
                             usersServerData[username] = nil
                             
                             -- Eliminar de Firebase también
@@ -1618,21 +1618,21 @@ local mensajesNuevos = {}
         avatarButton.Parent = avatarContainer
         
         avatarButton.MouseButton1Click:Connect(function()
-            print("🖱️ Click en avatar de:", username)
+    --        print("🖱️ Click en avatar de:", username)
             
             -- Verificar si el usuario tiene datos de servidor activos
             if usersServerData[username] then
                 local serverData = usersServerData[username]
                 local currentTime = os.time()
                 
-                print("📊 Datos encontrados para", username, "- PlaceId:", serverData.placeId, "JobId:", serverData.jobId, "Timestamp:", serverData.timestamp)
+           --     print("📊 Datos encontrados para", username, "- PlaceId:", serverData.placeId, "JobId:", serverData.jobId, "Timestamp:", serverData.timestamp)
                 
                 -- Verificar que los datos no sean muy viejos (3.5 minutos)
                 if serverData.timestamp and (currentTime - serverData.timestamp) <= 210 then
                     joinButtonVisible = not joinButtonVisible
                     joinButton.Visible = joinButtonVisible
                     
-                    print(joinButtonVisible and "✅ Botón de unirse VISIBLE" or "❌ Botón de unirse OCULTO")
+            --        print(joinButtonVisible and "✅ Botón de unirse VISIBLE" or "❌ Botón de unirse OCULTO")
                     
                     if joinButtonVisible then
                         TweenService:Create(joinButton, TweenInfo.new(0.2), {
@@ -1640,7 +1640,7 @@ local mensajesNuevos = {}
                         }):Play()
                     end
                 else
-                    print("⏰ Datos muy antiguos para", username)
+           --         print("⏰ Datos muy antiguos para", username)
                     if _G.Rayfield and _G.Rayfield.Notify then
                         _G.Rayfield:Notify({
                             Title = "❌ Tiempo Expirado",
@@ -1651,7 +1651,7 @@ local mensajesNuevos = {}
                     end
                 end
             else
-                print("❌ No hay datos de servidor para", username)
+         --       print("❌ No hay datos de servidor para", username)
                 if _G.Rayfield and _G.Rayfield.Notify then
                     _G.Rayfield:Notify({
                         Title = "❌ No Disponible",
@@ -1665,7 +1665,7 @@ local mensajesNuevos = {}
         
         -- Click en el botón "Unirse" para teleportar
         joinButton.MouseButton1Click:Connect(function()
-            print("🚀 Intentando unirse al servidor de:", username)
+        --    print("🚀 Intentando unirse al servidor de:", username)
             UnirseAServidor(username)
             joinButton.Visible = false
             joinButtonVisible = false
