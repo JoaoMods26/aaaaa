@@ -81,6 +81,15 @@ local ultimoComandoID = nil
 local comandosEjecutados = {} -- ✅ NUEVO: Para evitar ejecutar el mismo comando varias veces
 
 
+task.spawn(function()
+    while true do
+        task.wait(5)
+        if _G.CHAT_PROCESANDO_MENSAJES then
+            _G.CHAT_PROCESANDO_MENSAJES = false
+        end
+    end
+end)
+
 -- NUEVAS VARIABLES PARA SISTEMA DE UNIRSE
 local allowJoinToggleBtn = nil
 local allowJoinActive = false
@@ -1653,7 +1662,7 @@ local function showMessages(data)
         return
     end
     _G.CHAT_PROCESANDO_MENSAJES = true
-
+    local okInner, errInner = pcall(function()
     local mensajes = {}
     for key, value in pairs(data or {}) do
         value._id = key
@@ -1686,9 +1695,9 @@ local mensajesNuevos = {}
 
     -- ✅ NUEVO: Si no hay mensajes nuevos, liberar y salir
     if #mensajesNuevos == 0 then
-        _G.CHAT_PROCESANDO_MENSAJES = false
-        return
+        return  -- el pcall lo libera igual al final
     end
+    
 
     for _, msg in ipairs(mensajesNuevos) do
         local messageId = msg._id
@@ -1717,13 +1726,10 @@ end
 
  
 
-        if text:lower():find("discord") then
-            local esImagenDiscord = text:match("https?://cdn%.discordapp%.com") or 
-                                   text:match("https?://media%.discordapp%.net")
-            if not esImagenDiscord then
-                continue
-            end
-        end
+local esDiscordNoImagen = text:lower():find("discord") and 
+            not (text:match("https?://cdn%.discordapp%.com") or 
+                 text:match("https?://media%.discordapp%.net"))
+        if not esDiscordNoImagen then
 
         local avatarSize = isMobile and 40 or 50
         local anchoDisponible = chatBox.AbsoluteSize.X - avatarSize - 70
@@ -2447,11 +2453,12 @@ end
         container.BackgroundTransparency = 1
         container.Size = UDim2.new(1, -10, 0, 0)
         
-        TweenService:Create(container, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+TweenService:Create(container, TweenInfo.new(0.15, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
             Size = UDim2.new(1, -10, 0, alturaTotal),
             BackgroundTransparency = 0.3
         }):Play()
-    end
+    end  -- cierra el if not esDiscordNoImagen
+    end  -- cierra el for
 
 task.wait(0.1)
     if estoyAlFinal and chatBox then
@@ -2462,10 +2469,10 @@ task.wait(0.1)
         end
     end
 
-    -- ✅ NUEVO: Liberar el lock al final
-    _G.CHAT_PROCESANDO_MENSAJES = false
+    end) -- cierre del pcall
+    _G.CHAT_PROCESANDO_MENSAJES = false -- siempre libera
+    if not okInner then warn("❌ showMessages error:", errInner) end
 end
-
 local function EnviarNotificacionRespuesta(targetUsername, responderUsername, mensaje)
     task.spawn(function()
         local notificationData = {
@@ -3440,11 +3447,11 @@ task.spawn(function()
                 return HttpService:JSONDecode(response.Body)
             end)
             
-            if ok and typeof(decoded) == "table" then
+if ok and typeof(decoded) == "table" then
                 showMessages(decoded)
-                cargaInicialCompletada = true  -- ✅ NUEVO
             end
         end
+        cargaInicialCompletada = true
     end)
     
     VerificarNotificaciones()
