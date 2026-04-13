@@ -1,3 +1,4 @@
+------------------OTRAS COSAS---
 -- JXNULL CHAT GLOBAL V2 - SISTEMA DE ADMIN REMOTO CORREGIDO
 -- Sistema de carpetas
 if makefolder and not isfolder("JXNULL_CONFIGS") then
@@ -153,10 +154,10 @@ local function DetectarURLImagen(texto)
         if id then return "rbxassetid://" .. id end
     end
     
-    if texto:find("cdn%.discordapp%.com") or texto:find("media%.discordapp%.net") then
-        local url = texto:match("https?://[%w%.%-_]+%.discordapp%.%a+/[%w%.%-_/]+")
-        if url then return url end
-    end
+if texto:find("cdn%.discordapp%.com") or texto:find("media%.discordapp%.net") then
+    local url = texto:match("https?://[%S]+")
+    if url then return url end
+end
     
     if texto:find("%.rbxcdn%.com") then
         local url = texto:match("https?://[%w%.%-_]+%.rbxcdn%.com/[%w%.%-_/]+")
@@ -1151,14 +1152,19 @@ local function CrearIndicadorRespuesta(container)
 end
 
 -- FUNCIÓN PARA CREAR PANEL DE STICKERS
+-- =====================================================
+-- REEMPLAZA TODA LA FUNCIÓN CrearPanelStickers()
+-- con esta versión modificada
+-- =====================================================
+
 local function CrearPanelStickers()
     if stickerPanel and stickerPanel.Parent then
         stickerPanel:Destroy()
     end
-    
-    local panelWidth = isMobile and math.min(frame.AbsoluteSize.X * 0.90, 300) or 320
-    local panelHeight = isMobile and 250 or 280
-    
+
+    local panelWidth = isMobile and math.min(frame.AbsoluteSize.X * 0.90, 300) or 340
+    local panelHeight = isMobile and 320 or 360
+
     stickerPanel = Instance.new("Frame")
     stickerPanel.Name = "StickerPanel"
     stickerPanel.Size = UDim2.new(0, panelWidth, 0, panelHeight)
@@ -1167,14 +1173,15 @@ local function CrearPanelStickers()
     stickerPanel.BorderSizePixel = 0
     stickerPanel.ZIndex = 25
     stickerPanel.Parent = frame
-    
+
     local panelCorner = Instance.new("UICorner", stickerPanel)
     panelCorner.CornerRadius = UDim.new(0, 12)
-    
+
     local panelStroke = Instance.new("UIStroke", stickerPanel)
     panelStroke.Color = Color3.fromRGB(88, 101, 242)
     panelStroke.Thickness = 2
-    
+
+    -- ── TITLE BAR ──────────────────────────────────────
     local titleBar = Instance.new("Frame")
     titleBar.Name = "TitleBar"
     titleBar.Size = UDim2.new(1, 0, 0, isMobile and 35 or 40)
@@ -1182,10 +1189,10 @@ local function CrearPanelStickers()
     titleBar.BorderSizePixel = 0
     titleBar.ZIndex = 26
     titleBar.Parent = stickerPanel
-    
+
     local titleCorner = Instance.new("UICorner", titleBar)
     titleCorner.CornerRadius = UDim.new(0, 12)
-    
+
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(0.7, 0, 1, 0)
     title.Position = UDim2.new(0, 10, 0, 0)
@@ -1197,7 +1204,7 @@ local function CrearPanelStickers()
     title.TextXAlignment = Enum.TextXAlignment.Left
     title.ZIndex = 27
     title.Parent = titleBar
-    
+
     local closeBtn = Instance.new("TextButton")
     closeBtn.Size = UDim2.new(0, isMobile and 28 or 32, 0, isMobile and 28 or 32)
     closeBtn.Position = UDim2.new(1, -(isMobile and 33 or 37), 0.5, -(isMobile and 14 or 16))
@@ -1209,21 +1216,265 @@ local function CrearPanelStickers()
     closeBtn.BorderSizePixel = 0
     closeBtn.ZIndex = 27
     closeBtn.Parent = titleBar
-    
+
     local closeBtnCorner = Instance.new("UICorner", closeBtn)
     closeBtnCorner.CornerRadius = UDim.new(0, 6)
-    
+
     AgregarEfectoHover(closeBtn, Color3.fromRGB(220, 53, 69), Color3.fromRGB(255, 70, 85))
-    
+
     closeBtn.MouseButton1Click:Connect(function()
         stickerPanel:Destroy()
         stickerPanel = nil
     end)
-    
+
+    -- ── SECCIÓN: AGREGAR POR URL ────────────────────────
+    local addSection = Instance.new("Frame")
+    addSection.Name = "AddSection"
+    addSection.Size = UDim2.new(1, -16, 0, isMobile and 82 or 90)
+    addSection.Position = UDim2.new(0, 8, 0, isMobile and 40 or 46)
+    addSection.BackgroundColor3 = Color3.fromRGB(28, 28, 34)
+    addSection.BorderSizePixel = 0
+    addSection.ZIndex = 26
+    addSection.Parent = stickerPanel
+
+    local addSectionCorner = Instance.new("UICorner", addSection)
+    addSectionCorner.CornerRadius = UDim.new(0, 8)
+
+    local addSectionStroke = Instance.new("UIStroke", addSection)
+    addSectionStroke.Color = Color3.fromRGB(88, 101, 242)
+    addSectionStroke.Thickness = 1
+    addSectionStroke.Transparency = 0.6
+
+    local urlLabel = Instance.new("TextLabel")
+    urlLabel.Size = UDim2.new(1, -10, 0, 18)
+    urlLabel.Position = UDim2.new(0, 8, 0, 6)
+    urlLabel.BackgroundTransparency = 1
+    urlLabel.Text = "🔗 Pegar URL de imagen:"
+    urlLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+    urlLabel.Font = Enum.Font.GothamMedium
+    urlLabel.TextSize = isMobile and 10 or 12
+    urlLabel.TextXAlignment = Enum.TextXAlignment.Left
+    urlLabel.ZIndex = 27
+    urlLabel.Parent = addSection
+
+    local urlInput = Instance.new("TextBox")
+    urlInput.Name = "UrlInput"
+    urlInput.Size = UDim2.new(1, -16, 0, isMobile and 28 or 32)
+    urlInput.Position = UDim2.new(0, 8, 0, 26)
+    urlInput.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+    urlInput.PlaceholderText = "https://... o rbxassetid://..."
+    urlInput.PlaceholderColor3 = Color3.fromRGB(100, 100, 115)
+    urlInput.Text = ""
+    urlInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+    urlInput.Font = Enum.Font.Gotham
+    urlInput.TextSize = isMobile and 10 or 12
+    urlInput.ClearTextOnFocus = false
+    urlInput.ZIndex = 27
+    urlInput.Parent = addSection
+
+    local urlInputCorner = Instance.new("UICorner", urlInput)
+    urlInputCorner.CornerRadius = UDim.new(0, 6)
+
+    local urlInputStroke = Instance.new("UIStroke", urlInput)
+    urlInputStroke.Color = Color3.fromRGB(88, 101, 242)
+    urlInputStroke.Thickness = 1.2
+
+    -- Botón AGREGAR
+    local addBtn = Instance.new("TextButton")
+    addBtn.Name = "AddBtn"
+    addBtn.Size = UDim2.new(0.48, -4, 0, isMobile and 26 or 28)
+    addBtn.Position = UDim2.new(0, 8, 0, isMobile and 58 or 62)
+    addBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+    addBtn.Text = "➕ Guardar"
+    addBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    addBtn.Font = Enum.Font.GothamBold
+    addBtn.TextSize = isMobile and 11 or 12
+    addBtn.BorderSizePixel = 0
+    addBtn.ZIndex = 27
+    addBtn.Parent = addSection
+
+    local addBtnCorner = Instance.new("UICorner", addBtn)
+    addBtnCorner.CornerRadius = UDim.new(0, 6)
+
+    AgregarEfectoHover(addBtn, Color3.fromRGB(88, 101, 242), Color3.fromRGB(108, 121, 255))
+
+    -- Botón ENVIAR AL CHAT
+    local sendStickerBtn = Instance.new("TextButton")
+    sendStickerBtn.Name = "SendStickerBtn"
+    sendStickerBtn.Size = UDim2.new(0.48, -4, 0, isMobile and 26 or 28)
+    sendStickerBtn.Position = UDim2.new(0.52, -4, 0, isMobile and 58 or 62)
+    sendStickerBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
+    sendStickerBtn.Text = "📨 Enviar"
+    sendStickerBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    sendStickerBtn.Font = Enum.Font.GothamBold
+    sendStickerBtn.TextSize = isMobile and 11 or 12
+    sendStickerBtn.BorderSizePixel = 0
+    sendStickerBtn.ZIndex = 27
+    sendStickerBtn.Parent = addSection
+
+    local sendStickerBtnCorner = Instance.new("UICorner", sendStickerBtn)
+    sendStickerBtnCorner.CornerRadius = UDim.new(0, 6)
+
+    AgregarEfectoHover(sendStickerBtn, Color3.fromRGB(67, 181, 129), Color3.fromRGB(87, 201, 149))
+
+    -- ── LÓGICA: DESCARGAR Y VERIFICAR URL ──────────────
+-- ── LÓGICA: RESOLVER URL ──────────────────────────
+ local function ResolverURL(rawUrl)
+    rawUrl = rawUrl:gsub("^%s*(.-)%s*$", "%1")
+    if rawUrl == "" then return nil, "URL vacía" end
+
+    if rawUrl:match("^rbxassetid://") then
+        return rawUrl, nil
+    end
+
+    if rawUrl:match("^%d+$") and #rawUrl >= 5 then
+        return "rbxassetid://" .. rawUrl, nil
+    end
+
+    if rawUrl:match("^https?://") then
+        -- Hash para evitar duplicados
+        local urlHash = 0
+        for i = 1, #rawUrl do
+            urlHash = (urlHash * 31 + string.byte(rawUrl, i)) % 99999999
+        end
+        -- ✅ Ruta simple sin subcarpeta
+        local fileName = "jxstk_" .. urlHash .. ".png"
+
+        local ok = pcall(function()
+            if not isfile(fileName) then
+                writefile(fileName, game:HttpGet(rawUrl))
+            end
+        end)
+
+        if not ok then
+            return nil, "No se pudo descargar"
+        end
+
+        -- ✅ getcustomasset fuera de pcall, como en el ejemplo
+        local assetUrl = getcustomasset(fileName)
+        if not assetUrl or assetUrl == "" then
+            return nil, "Error al cargar imagen"
+        end
+
+        return assetUrl, nil, fileName
+    end
+
+    return nil, "Formato no reconocido"
+end
+    local function MostrarFeedback(btn, texto, color, delay)
+        local original = btn.Text
+        local originalColor = btn.BackgroundColor3
+        btn.Text = texto
+        btn.BackgroundColor3 = color
+        task.wait(delay or 1.5)
+        if btn and btn.Parent then
+            btn.Text = original
+            btn.BackgroundColor3 = originalColor
+        end
+    end
+
+    -- Botón GUARDAR
+    addBtn.MouseButton1Click:Connect(function()
+        local rawUrl = urlInput.Text:gsub("^%s*(.-)%s*$", "%1")
+        if rawUrl == "" then
+            task.spawn(MostrarFeedback, addBtn, "❌ URL vacía", Color3.fromRGB(220, 53, 69), 1.2)
+            return
+        end
+
+        addBtn.Text = "⏳ Cargando..."
+        addBtn.Active = false
+
+        task.spawn(function()
+            local resolvedUrl, err, filePath = ResolverURL(rawUrl)
+
+            if not resolvedUrl then
+                task.spawn(MostrarFeedback, addBtn, "❌ " .. (err or "Error"), Color3.fromRGB(220, 53, 69), 2)
+                addBtn.Active = true
+                return
+            end
+
+            -- Guardar en la lista con la URL resuelta (y el filePath si aplica)
+            local stickerData = {
+               url = rawUrl,        -- ✅ URL original que persiste entre sesiones
+                rawUrl = rawUrl,
+                filePath = filePath,
+                nombre = "URL_" .. os.time(),
+                timestamp = os.time()
+            }
+
+            -- Verificar duplicado
+            local existe = false
+            for _, s in ipairs(stickersGuardados) do
+                if s.url == resolvedUrl or s.rawUrl == rawUrl then
+                    existe = true
+                    break
+                end
+            end
+
+            if existe then
+                task.spawn(MostrarFeedback, addBtn, "⚠️ Ya existe", Color3.fromRGB(255, 193, 7), 1.5)
+                addBtn.Active = true
+                return
+            end
+
+            table.insert(stickersGuardados, stickerData)
+            GuardarStickers(stickersGuardados)
+
+            urlInput.Text = ""
+            addBtn.Active = true
+            addBtn.Text = "✅ Guardado"
+            task.wait(1)
+
+            -- Reabrir panel actualizado
+            if stickerPanel and stickerPanel.Parent then
+                CrearPanelStickers()
+            end
+        end)
+    end)
+
+    -- Botón ENVIAR AL CHAT (sin guardar)
+    sendStickerBtn.MouseButton1Click:Connect(function()
+        local rawUrl = urlInput.Text:gsub("^%s*(.-)%s*$", "%1")
+        if rawUrl == "" then
+            task.spawn(MostrarFeedback, sendStickerBtn, "❌ URL vacía", Color3.fromRGB(220, 53, 69), 1.2)
+            return
+        end
+
+        sendStickerBtn.Text = "⏳ Cargando..."
+        sendStickerBtn.Active = false
+
+        task.spawn(function()
+            local resolvedUrl, err = ResolverURL(rawUrl)
+
+            if not resolvedUrl then
+                task.spawn(MostrarFeedback, sendStickerBtn, "❌ " .. (err or "Error"), Color3.fromRGB(220, 53, 69), 2)
+                sendStickerBtn.Active = true
+                return
+            end
+
+if textBox then
+    textBox.Text = rawUrl
+end
+
+            sendStickerBtn.Active = true
+            urlInput.Text = ""
+
+            if stickerPanel and stickerPanel.Parent then
+                stickerPanel:Destroy()
+                stickerPanel = nil
+            end
+
+            if textBox then
+                textBox:CaptureFocus()
+            end
+        end)
+    end)
+
+    -- ── SCROLL DE STICKERS GUARDADOS ───────────────────
     local stickerScroll = Instance.new("ScrollingFrame")
     stickerScroll.Name = "StickerScroll"
-    stickerScroll.Size = UDim2.new(1, -20, 1, -(isMobile and 50 or 55))
-    stickerScroll.Position = UDim2.new(0, 10, 0, isMobile and 40 or 45)
+    stickerScroll.Size = UDim2.new(1, -16, 1, -(isMobile and 140 or 152))
+    stickerScroll.Position = UDim2.new(0, 8, 0, isMobile and 132 or 144)
     stickerScroll.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
     stickerScroll.BackgroundTransparency = 0.5
     stickerScroll.BorderSizePixel = 0
@@ -1233,26 +1484,26 @@ local function CrearPanelStickers()
     stickerScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
     stickerScroll.ZIndex = 26
     stickerScroll.Parent = stickerPanel
-    
+
     local scrollCorner = Instance.new("UICorner", stickerScroll)
     scrollCorner.CornerRadius = UDim.new(0, 8)
-    
+
     local stickerGrid = Instance.new("UIGridLayout", stickerScroll)
     stickerGrid.CellSize = UDim2.new(0, isMobile and 80 or 90, 0, isMobile and 80 or 90)
     stickerGrid.CellPadding = UDim2.new(0, isMobile and 6 or 8, 0, isMobile and 6 or 8)
     stickerGrid.SortOrder = Enum.SortOrder.LayoutOrder
-    
+
     local gridPadding = Instance.new("UIPadding", stickerScroll)
     gridPadding.PaddingLeft = UDim.new(0, 5)
     gridPadding.PaddingRight = UDim.new(0, 5)
     gridPadding.PaddingTop = UDim.new(0, 5)
     gridPadding.PaddingBottom = UDim.new(0, 5)
-    
+
     if #stickersGuardados == 0 then
         local emptyLabel = Instance.new("TextLabel")
         emptyLabel.Size = UDim2.new(1, 0, 1, 0)
         emptyLabel.BackgroundTransparency = 1
-        emptyLabel.Text = "🎨\n\nNo tienes stickers guardados\n\nEnvía una URL de imagen\nen el chat para guardarla"
+        emptyLabel.Text = "🎨\n\nNo tienes stickers guardados\n\nPega una URL arriba\npara agregar uno"
         emptyLabel.TextColor3 = Color3.fromRGB(150, 150, 160)
         emptyLabel.Font = Enum.Font.GothamMedium
         emptyLabel.TextSize = isMobile and 11 or 13
@@ -1266,34 +1517,60 @@ local function CrearPanelStickers()
             stickerContainer.BorderSizePixel = 0
             stickerContainer.ZIndex = 27
             stickerContainer.Parent = stickerScroll
-            
+
             local containerCorner = Instance.new("UICorner", stickerContainer)
             containerCorner.CornerRadius = UDim.new(0, 8)
-            
+
             local containerStroke = Instance.new("UIStroke", stickerContainer)
             containerStroke.Color = Color3.fromRGB(50, 50, 60)
             containerStroke.Thickness = 1
-            
+
             local stickerImg = Instance.new("ImageLabel")
             stickerImg.Name = "StickerImage"
             stickerImg.Size = UDim2.new(1, -10, 1, -35)
             stickerImg.Position = UDim2.new(0, 5, 0, 5)
             stickerImg.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-            stickerImg.Image = sticker.url
+-- Intentar cargar desde disco primero, si no usar rawUrl
+if sticker.filePath and isfile and isfile(sticker.filePath) then
+    local ok, asset = pcall(getcustomasset, sticker.filePath)
+    stickerImg.Image = ok and asset or (sticker.rawUrl or sticker.url)
+else
+    stickerImg.Image = sticker.rawUrl or sticker.url
+end
             stickerImg.ScaleType = Enum.ScaleType.Fit
             stickerImg.ZIndex = 28
             stickerImg.Parent = stickerContainer
-            
+
             local imgCorner = Instance.new("UICorner", stickerImg)
             imgCorner.CornerRadius = UDim.new(0, 6)
-            
+
+            -- Indicador de error si no carga
+            task.spawn(function()
+                task.wait(3)
+                if stickerImg and stickerImg.Parent then
+                    if stickerImg.IsLoaded == false or stickerImg.ContentImageSize == Vector2.new(0, 0) then
+                        stickerImg.Image = ""
+                        local errLabel = Instance.new("TextLabel")
+                        errLabel.Size = UDim2.new(1, 0, 1, 0)
+                        errLabel.BackgroundTransparency = 1
+                        errLabel.Text = "❌\nError"
+                        errLabel.TextColor3 = Color3.fromRGB(220, 53, 69)
+                        errLabel.Font = Enum.Font.GothamBold
+                        errLabel.TextSize = 11
+                        errLabel.ZIndex = 29
+                        errLabel.Parent = stickerImg
+                    end
+                end
+            end)
+
             local btnContainer = Instance.new("Frame")
             btnContainer.Size = UDim2.new(1, 0, 0, 25)
             btnContainer.Position = UDim2.new(0, 0, 1, -25)
             btnContainer.BackgroundTransparency = 1
             btnContainer.ZIndex = 28
             btnContainer.Parent = stickerContainer
-            
+
+            -- Botón USAR (enviar al chat)
             local useBtn = Instance.new("TextButton")
             useBtn.Size = UDim2.new(0.5, -2, 1, 0)
             useBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
@@ -1304,19 +1581,21 @@ local function CrearPanelStickers()
             useBtn.BorderSizePixel = 0
             useBtn.ZIndex = 29
             useBtn.Parent = btnContainer
-            
+
             local useBtnCorner = Instance.new("UICorner", useBtn)
             useBtnCorner.CornerRadius = UDim.new(0, 6)
-            
+
             useBtn.MouseButton1Click:Connect(function()
                 if textBox then
-                    textBox.Text = sticker.url
-                    stickerPanel:Destroy()
-                    stickerPanel = nil
+                    -- Usar rawUrl si es URL externa para que Firebase la almacene bien
+textBox.Text = sticker.rawUrl or sticker.url
+stickerPanel:Destroy()                 
+   stickerPanel = nil
                     textBox:CaptureFocus()
                 end
             end)
-            
+
+            -- Botón ELIMINAR
             local deleteBtn = Instance.new("TextButton")
             deleteBtn.Size = UDim2.new(0.5, -2, 1, 0)
             deleteBtn.Position = UDim2.new(0.5, 2, 0, 0)
@@ -1328,23 +1607,27 @@ local function CrearPanelStickers()
             deleteBtn.BorderSizePixel = 0
             deleteBtn.ZIndex = 29
             deleteBtn.Parent = btnContainer
-            
+
             local deleteBtnCorner = Instance.new("UICorner", deleteBtn)
             deleteBtnCorner.CornerRadius = UDim.new(0, 6)
-            
+
             deleteBtn.MouseButton1Click:Connect(function()
+                -- Si tiene archivo descargado, borrarlo también
+                if sticker.filePath and isfile and isfile(sticker.filePath) then
+                    pcall(function() delfile(sticker.filePath) end)
+                end
                 if EliminarSticker(index) then
                     CrearPanelStickers()
                 end
             end)
-            
+
             stickerContainer.MouseEnter:Connect(function()
                 TweenService:Create(containerStroke, TweenInfo.new(0.2), {
                     Color = Color3.fromRGB(88, 101, 242),
                     Thickness = 2
                 }):Play()
             end)
-            
+
             stickerContainer.MouseLeave:Connect(function()
                 TweenService:Create(containerStroke, TweenInfo.new(0.2), {
                     Color = Color3.fromRGB(50, 50, 60),
@@ -1353,7 +1636,8 @@ local function CrearPanelStickers()
             end)
         end
     end
-    
+
+    -- Animación de apertura
     stickerPanel.Size = UDim2.new(0, 0, 0, 0)
     TweenService:Create(stickerPanel, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
         Size = UDim2.new(0, panelWidth, 0, panelHeight)
@@ -1419,9 +1703,9 @@ local mensajesNuevos = {}
         local textoSinURL = ExtraerTextoSinURL(text, urlImagen)
         local hayTextoAdicional = textoSinURL ~= "" and textoSinURL ~= text
         
-        if esSticker and not text:lower():find("discord") then
-            local success, resultado = AgregarSticker(urlImagen, username .. "_" .. os.time())
-        end
+if esSticker then
+    AgregarSticker(urlImagen, username .. "_" .. os.time())
+end
         
         local tag = ""
         local tagColor = Color3.fromRGB(200, 200, 200)
@@ -1869,7 +2153,35 @@ local mensajesNuevos = {}
             stickerImage.Size = UDim2.new(1, -10, 1, -10)
             stickerImage.Position = UDim2.new(0, 5, 0, 5)
             stickerImage.BackgroundTransparency = 1
-            stickerImage.Image = urlImagen
+if urlImagen:match("^rbxassetid://") then
+    stickerImage.Image = urlImagen
+else
+    stickerImage.Image = ""
+    task.spawn(function()
+        local imagenFinal = urlImagen
+        if urlImagen:match("^https?://") then
+            local urlHash = 0
+            for i = 1, #urlImagen do
+                urlHash = (urlHash * 31 + string.byte(urlImagen, i)) % 99999999
+            end
+            local fileName = "jxstk_" .. urlHash .. ".png"
+            local ok = pcall(function()
+                if not isfile(fileName) then
+                    writefile(fileName, game:HttpGet(urlImagen))
+                end
+            end)
+            if ok then
+                local assetOk, asset = pcall(getcustomasset, fileName)
+                if assetOk and asset and asset ~= "" then
+                    imagenFinal = asset
+                end
+            end
+        end
+        if stickerImage and stickerImage.Parent then
+            stickerImage.Image = imagenFinal
+        end
+    end)
+end
             stickerImage.ScaleType = Enum.ScaleType.Fit
             stickerImage.ZIndex = 5
             stickerImage.Parent = stickerContainer
@@ -1958,7 +2270,35 @@ local mensajesNuevos = {}
             stickerImage.Size = UDim2.new(1, -10, 1, -10)
             stickerImage.Position = UDim2.new(0, 5, 0, 5)
             stickerImage.BackgroundTransparency = 1
-            stickerImage.Image = urlImagen
+if urlImagen:match("^rbxassetid://") then
+    stickerImage.Image = urlImagen
+else
+    stickerImage.Image = ""
+    task.spawn(function()
+        local imagenFinal = urlImagen
+        if urlImagen:match("^https?://") then
+            local urlHash = 0
+            for i = 1, #urlImagen do
+                urlHash = (urlHash * 31 + string.byte(urlImagen, i)) % 99999999
+            end
+            local fileName = "jxstk_" .. urlHash .. ".png"
+            local ok = pcall(function()
+                if not isfile(fileName) then
+                    writefile(fileName, game:HttpGet(urlImagen))
+                end
+            end)
+            if ok then
+                local assetOk, asset = pcall(getcustomasset, fileName)
+                if assetOk and asset and asset ~= "" then
+                    imagenFinal = asset
+                end
+            end
+        end
+        if stickerImage and stickerImage.Parent then
+            stickerImage.Image = imagenFinal
+        end
+    end)
+end
             stickerImage.ScaleType = Enum.ScaleType.Fit
             stickerImage.ZIndex = 5
             stickerImage.Parent = stickerContainer
@@ -3120,11 +3460,15 @@ task.spawn(function()
         end
 
         -- ✅ NUEVO: No procesar hasta que la carga inicial termine
-        if not cargaInicialCompletada then
-            task.wait(1)
-            continue
-        end
+if not guiActivo then
+    task.wait(1)
+    continue
+end
 
+if not cargaInicialCompletada then
+    task.wait(0.5)
+    continue
+end
         local success, response = pcall(function()
             return request({ 
                 Url = firebaseURL, 
@@ -3180,9 +3524,9 @@ task.spawn(function()
                     ultimoMensajeID = ultimo._id
                 end
 
-                if guiActivo then
-                    showMessages(decoded)
-                end
+if guiActivo and cargaInicialCompletada then
+    showMessages(decoded)
+end
             end
         end
 
