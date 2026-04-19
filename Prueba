@@ -1,5 +1,5 @@
 ------------------OTRAS COSAS---
--- JXNULL CHAT GLOBAL V2 - SISTEMA DE ADMIN REMOTO CORREGIDO
+-- JXNULL
 -- Sistema de carpetas
 if makefolder and not isfolder("JXNULL_CONFIGS") then
     makefolder("JXNULL_CONFIGS")
