@@ -23,6 +23,7 @@ local ChatScripters = {
 -- 🔧 SERVICIOS Y VARIABLES GLOBALES
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
+local guiParent = (typeof(gethui) == "function" and gethui()) or CoreGui
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
@@ -2068,7 +2069,7 @@ function crearChatGUI()
     gui.ResetOnSpawn = false
     gui.IgnoreGuiInset = true
     gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    gui.Parent = CoreGui
+gui.Parent = guiParent
 
 local viewport = workspace.CurrentCamera.ViewportSize
     
@@ -3059,7 +3060,7 @@ escuchaActiva = true
 cargaInicialCompletada = false 
 
             pcall(function()
-                        local old = CoreGui:FindFirstChild("JXNullChat_V2")
+                        local old = guiParent:FindFirstChild("JXNullChat_V2")
                         if old then old:Destroy() end
                     end)
 
@@ -3095,7 +3096,7 @@ cargaInicialCompletada = false
                     end)
 
                     pcall(function()
-                        local old = CoreGui:FindFirstChild("JXNullChat_V2")
+                       local old = guiParent:FindFirstChild("JXNullChat_V2")
                         if old then old:Destroy() end
                     end)
 
