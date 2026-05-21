@@ -10,7 +10,8 @@ local ChatScripters = {
     ["joao_modsF"] = true,
     ["joao_mods26"] = true,
     ["donxexman"] = true,
-    ["INFINITYH4CK"] = true
+    ["INFINITYH4CK"] = true,
+    ["Juriesmiauwu"] = true
 }
 
 -- LISTA DE SUPER ADMINISTRADORES (Solo pueden ejecutar scripts remotos)
