@@ -1053,11 +1053,63 @@ end
             stickerImg.Position = UDim2.new(0, 5, 0, 5)
             stickerImg.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
 -- Intentar cargar desde disco primero, si no usar rawUrl
-if sticker.filePath and isfile and isfile(sticker.filePath) then
+-- DESPUÉS (corregido):
+local rawUrl = sticker.rawUrl or sticker.url or ""
+
+if rawUrl:match("^rbxassetid://") or rawUrl:match("^%d+$") then
+    -- ✅ Es un asset de Roblox, se carga directamente
+    local id = rawUrl:match("%d+")
+    stickerImg.Image = "rbxassetid://" .. id
+
+elseif sticker.filePath and isfile and isfile(sticker.filePath) then
+    -- ✅ Archivo ya descargado previamente, usar getcustomasset
     local ok, asset = pcall(getcustomasset, sticker.filePath)
-    stickerImg.Image = ok and asset or (sticker.rawUrl or sticker.url)
-else
-    stickerImg.Image = sticker.rawUrl or sticker.url
+    if ok and asset and asset ~= "" then
+        stickerImg.Image = asset
+    else
+        -- Archivo corrupto, re-descargar
+        task.spawn(function()
+            local urlHash = 0
+            for i = 1, #rawUrl do
+                urlHash = (urlHash * 31 + string.byte(rawUrl, i)) % 99999999
+            end
+            local fileName = "jxstk_" .. urlHash .. ".png"
+            local ok2 = pcall(function()
+                writefile(fileName, game:HttpGet(rawUrl))
+            end)
+            if ok2 then
+                local ok3, asset2 = pcall(getcustomasset, fileName)
+                if ok3 and asset2 and asset2 ~= "" and stickerImg and stickerImg.Parent then
+                    stickerImg.Image = asset2
+                end
+            end
+        end)
+    end
+
+elseif rawUrl:match("^https?://") then
+    -- ✅ URL externa sin archivo local: descargar al vuelo
+    stickerImg.Image = "" -- placeholder vacío mientras carga
+    task.spawn(function()
+        local urlHash = 0
+        for i = 1, #rawUrl do
+            urlHash = (urlHash * 31 + string.byte(rawUrl, i)) % 99999999
+        end
+        local fileName = "jxstk_" .. urlHash .. ".png"
+        local ok = pcall(function()
+            if not isfile(fileName) then
+                writefile(fileName, game:HttpGet(rawUrl))
+            end
+        end)
+        if ok then
+            local ok2, asset = pcall(getcustomasset, fileName)
+            if ok2 and asset and asset ~= "" and stickerImg and stickerImg.Parent then
+                stickerImg.Image = asset
+                -- Actualizar filePath en el sticker guardado para futuras sesiones
+                sticker.filePath = fileName
+                GuardarStickers(stickersGuardados)
+            end
+        end
+    end)
 end
             stickerImg.ScaleType = Enum.ScaleType.Fit
             stickerImg.ZIndex = 28
@@ -1067,23 +1119,24 @@ end
             imgCorner.CornerRadius = UDim.new(0, 6)
 
             -- Indicador de error si no carga
-            task.spawn(function()
-                task.wait(3)
-                if stickerImg and stickerImg.Parent then
-                    if stickerImg.IsLoaded == false or stickerImg.ContentImageSize == Vector2.new(0, 0) then
-                        stickerImg.Image = ""
-                        local errLabel = Instance.new("TextLabel")
-                        errLabel.Size = UDim2.new(1, 0, 1, 0)
-                        errLabel.BackgroundTransparency = 1
-                        errLabel.Text = "❌\nError"
-                        errLabel.TextColor3 = Color3.fromRGB(220, 53, 69)
-                        errLabel.Font = Enum.Font.GothamBold
-                        errLabel.TextSize = 11
-                        errLabel.ZIndex = 29
-                        errLabel.Parent = stickerImg
-                    end
-                end
-            end)
+-- ✅ DESPUÉS (corregido - espera más y solo falla si realmente está vacío):
+task.spawn(function()
+    task.wait(8) -- Esperar suficiente para que getcustomasset termine
+    if stickerImg and stickerImg.Parent then
+        -- Solo mostrar error si la imagen sigue vacía después de todo el tiempo
+        if stickerImg.Image == "" then
+            local errLabel = Instance.new("TextLabel")
+            errLabel.Size = UDim2.new(1, 0, 1, 0)
+            errLabel.BackgroundTransparency = 1
+            errLabel.Text = "❌\nError"
+            errLabel.TextColor3 = Color3.fromRGB(220, 53, 69)
+            errLabel.Font = Enum.Font.GothamBold
+            errLabel.TextSize = 11
+            errLabel.ZIndex = 29
+            errLabel.Parent = stickerImg
+        end
+    end
+end)
 
             local btnContainer = Instance.new("Frame")
             btnContainer.Size = UDim2.new(1, 0, 0, 25)
