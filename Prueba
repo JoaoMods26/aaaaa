@@ -261,16 +261,22 @@ end
 
 -- Limpiar datos del servidor cuando se desactive
 local function LimpiarDatosServidor()
-    task.spawn(function()
-        pcall(function()
+    for intento = 1, 3 do
+        local success = pcall(function()
             request({
                 Url = "https://jxnc-60014-default-rtdb.firebaseio.com/ServerJoinData/" .. player.Name .. ".json",
                 Method = "DELETE"
             })
         end)
-    end)
+        if success then
+            print("✅ ServerJoinData eliminado (intento " .. intento .. ")")
+            break
+        else
+            warn("⚠️ Intento " .. intento .. " fallido al eliminar ServerJoinData")
+            if intento < 3 then task.wait(1) end
+        end
+    end
 end
-
 -- Activar toggle de unirse (3 minutos)
 local function ActivarAllowJoin()
     if allowJoinActive then return end
@@ -322,27 +328,46 @@ end
 -- Desactivar toggle de unirse
 function DesactivarAllowJoin()
     if not allowJoinActive then return end
-    
+
+    print("🧹 Limpiando datos del servidor ANTES de desactivar flag...")
+
+    -- ✅ Limpiar PRIMERO antes de poner allowJoinActive = false
+    -- así el cleanup al salir nunca pierde datos huérfanos
+    local cleanupDone = false
+    task.spawn(function()
+        LimpiarDatosServidor()
+        cleanupDone = true
+    end)
+
+    -- Esperar máximo 3 segundos
+    local timeout = 0
+    repeat
+        task.wait(0.1)
+        timeout = timeout + 0.1
+    until cleanupDone or timeout >= 3
+
+    if not cleanupDone then
+        warn("⚠️ Timeout limpiando datos - puede quedar residual en Firebase")
+    end
+
+    -- Ahora sí desactivar el flag
     allowJoinActive = false
-    
-    -- ✅ SOLO limpiar MIS PROPIOS datos, no los de otros usuarios
-    print("🧹 Limpiando solo MIS datos del servidor...")
-    LimpiarDatosServidor()
-    
-    -- Actualizar UI del botón SI EXISTE
+
+    -- Actualizar UI del botón
     if allowJoinToggleBtn and allowJoinToggleBtn.Parent then
         allowJoinToggleBtn.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
         allowJoinToggleBtn.Text = "🔗"
     end
-    
-    -- Cancelar timer si existe
+
+    -- Cancelar timer
     if joinTimerConnection then
         task.cancel(joinTimerConnection)
         joinTimerConnection = nil
     end
-    
-    print("❌ Toggle de unirse DESACTIVADO")
+
+    print("❌ Toggle de unirse DESACTIVADO y datos limpiados")
 end
+
 
 -- Obtener datos de servidor de un usuario específico
 local function ObtenerDatosServidorUsuario(username)
@@ -1362,16 +1387,17 @@ stickerPanel:Destroy()
             end)
 
 -- Doble click/tap para abrir visor
-            local lastClick_panel = 0
+local lastClick_panel = 0
             stickerContainer.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1
                 or input.UserInputType == Enum.UserInputType.Touch then
                     local now = tick()
-                    if now - lastClick_panel < 0.4 then
+                    local delta = now - lastClick_panel
+                    lastClick_panel = now
+                    if delta < 0.35 and delta > 0.05 then
                         local rawUrl = sticker.rawUrl or sticker.url or ""
                         AbrirVisorImagen(rawUrl)
                     end
-                    lastClick_panel = now
                 end
             end)
 
@@ -1652,49 +1678,76 @@ local esDiscordNoImagen = text:lower():find("discord") and
         avatarButton.ZIndex = 6
         avatarButton.Parent = avatarContainer
         
-        avatarButton.MouseButton1Click:Connect(function()
-    --        print("🖱️ Click en avatar de:", username)
-            
-            -- Verificar si el usuario tiene datos de servidor activos
-            if usersServerData[username] then
-                local serverData = usersServerData[username]
-                local currentTime = os.time()
-                
-           --     print("📊 Datos encontrados para", username, "- PlaceId:", serverData.placeId, "JobId:", serverData.jobId, "Timestamp:", serverData.timestamp)
-                
-                -- Verificar que los datos no sean muy viejos (3.5 minutos)
-                if serverData.timestamp and (currentTime - serverData.timestamp) <= 210 then
-                    joinButtonVisible = not joinButtonVisible
-                    joinButton.Visible = joinButtonVisible
-                    
-            --        print(joinButtonVisible and "✅ Botón de unirse VISIBLE" or "❌ Botón de unirse OCULTO")
-                    
-                    if joinButtonVisible then
-                        TweenService:Create(joinButton, TweenInfo.new(0.2), {
-                            BackgroundColor3 = Color3.fromRGB(87, 201, 149)
-                        }):Play()
+avatarButton.MouseButton1Click:Connect(function()
+            print("🖱️ Click en avatar de:", username)
+
+            -- ✅ Primero revisar cache local (rápido)
+            local serverData = usersServerData[username]
+
+            if not serverData then
+                -- ✅ No está en cache: consultar Firebase directamente
+                print("🔍 No en cache, consultando Firebase para:", username)
+                joinButton.Text = "⏳"
+                joinButton.Visible = true
+
+                task.spawn(function()
+                    local freshData = ObtenerDatosServidorUsuario(username)
+
+                    if freshData then
+                        -- Guardar en cache y mostrar botón
+                        usersServerData[username] = freshData
+                        if joinButton and joinButton.Parent then
+                            joinButton.Text = "🚀 Unirse"
+                            joinButton.Visible = true
+                            joinButtonVisible = true
+                            TweenService:Create(joinButton, TweenInfo.new(0.2), {
+                                BackgroundColor3 = Color3.fromRGB(87, 201, 149)
+                            }):Play()
+                        end
+                    else
+                        -- No hay datos en Firebase tampoco
+                        if joinButton and joinButton.Parent then
+                            joinButton.Visible = false
+                            joinButtonVisible = false
+                        end
+                        if _G.Rayfield and _G.Rayfield.Notify then
+                            _G.Rayfield:Notify({
+                                Title = "❌ No Disponible",
+                                Content = username .. " no permite unirse ahora",
+                                Duration = 3,
+                                Image = 4483362458
+                            })
+                        end
                     end
-                else
-           --         print("⏰ Datos muy antiguos para", username)
-                    if _G.Rayfield and _G.Rayfield.Notify then
-                        _G.Rayfield:Notify({
-                            Title = "❌ Tiempo Expirado",
-                            Content = username .. " ya no permite unirse",
-                            Duration = 3,
-                            Image = 4483362458
-                        })
-                    end
-                end
-            else
-         --       print("❌ No hay datos de servidor para", username)
+                end)
+                return
+            end
+
+            -- ✅ Hay datos en cache: verificar que no sean viejos
+            local currentTime = os.time()
+            if serverData.timestamp and (currentTime - serverData.timestamp) > 210 then
+                print("⏰ Datos expirados para:", username)
+                usersServerData[username] = nil -- Limpiar cache viejo
+
                 if _G.Rayfield and _G.Rayfield.Notify then
                     _G.Rayfield:Notify({
-                        Title = "❌ No Disponible",
-                        Content = username .. " no permite unirse",
+                        Title = "❌ Tiempo Expirado",
+                        Content = username .. " ya no permite unirse",
                         Duration = 3,
                         Image = 4483362458
                     })
                 end
+                return
+            end
+
+            -- ✅ Datos válidos: toggle botón
+            joinButtonVisible = not joinButtonVisible
+            joinButton.Visible = joinButtonVisible
+
+            if joinButtonVisible then
+                TweenService:Create(joinButton, TweenInfo.new(0.2), {
+                    BackgroundColor3 = Color3.fromRGB(87, 201, 149)
+                }):Play()
             end
         end)
         
@@ -1961,15 +2014,16 @@ stickerContainer.MouseLeave:Connect(function()
             end)
 
             -- Doble click/tap para abrir visor (chat sticker 1)
-            local lastClick_c1 = 0
+local lastClick_c1 = 0
             stickerContainer.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1
                 or input.UserInputType == Enum.UserInputType.Touch then
                     local now = tick()
-                    if now - lastClick_c1 < 0.4 then
+                    local delta = now - lastClick_c1
+                    lastClick_c1 = now
+                    if delta < 0.35 and delta > 0.05 then
                         AbrirVisorImagen(urlImagen)
                     end
-                    lastClick_c1 = now
                 end
             end)
             
@@ -2091,15 +2145,16 @@ stickerContainer.MouseLeave:Connect(function()
             end)
 
             -- Doble click/tap para abrir visor (chat sticker 2)
-            local lastClick_c2 = 0
+local lastClick_c2 = 0
             stickerContainer.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1
                 or input.UserInputType == Enum.UserInputType.Touch then
                     local now = tick()
-                    if now - lastClick_c2 < 0.4 then
+                    local delta = now - lastClick_c2
+                    lastClick_c2 = now
+                    if delta < 0.35 and delta > 0.05 then
                         AbrirVisorImagen(urlImagen)
                     end
-                    lastClick_c2 = now
                 end
             end)
             
@@ -3376,15 +3431,18 @@ end)
 -- CLEANUP AL SALIR
 game:GetService("Players").PlayerRemoving:Connect(function(plr)
     if plr == player then
-        -- 🚀 Limpiar datos de servidor al salir
-        if allowJoinActive then
-            LimpiarDatosServidor()
-        end
-        
+        -- ✅ Limpiar SIEMPRE, sin importar si allowJoinActive es true o false
+        -- porque puede haber race condition entre los dos estados
+        print("🚪 Jugador saliendo - limpiando ServerJoinData incondicionalmente...")
         pcall(function()
-            if gui then 
-                gui:Destroy() 
-            end
+            request({
+                Url = "https://jxnc-60014-default-rtdb.firebaseio.com/ServerJoinData/" .. player.Name .. ".json",
+                Method = "DELETE"
+            })
+        end)
+
+        pcall(function()
+            if gui then gui:Destroy() end
         end)
     end
 end)
