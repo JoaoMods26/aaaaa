@@ -80,6 +80,110 @@ local firebaseURL = "https://jxnc-60014-default-rtdb.firebaseio.com/Chat.json"
 -- Respuestas
 local respuestasURL = "https://jxnc-60014-default-rtdb.firebaseio.com/Respuestas.json"
 
+
+-- URLs de moderación
+local mutedUsersURL = "https://jxnc-60014-default-rtdb.firebaseio.com/MutedUsers.json"
+local imagesDisabledURL = "https://jxnc-60014-default-rtdb.firebaseio.com/ImagesDisabled.json"
+
+-- Caches locales
+local mutedUsersCache = {}
+local imagesDisabledCache = {}
+
+-- Obtener lista de moderación desde Firebase
+local function ObtenerListaModeracion(url)
+    local success, response = pcall(function()
+        return request({ Url = url, Method = "GET" })
+    end)
+    if success and response and response.Body then
+        local ok, data = pcall(function()
+            return HttpService:JSONDecode(response.Body)
+        end)
+        if ok and typeof(data) == "table" then
+            return data
+        end
+    end
+    return {}
+end
+
+-- Actualizar caches (se llamará en un loop)
+local function ActualizarCachesModeracion()
+    task.spawn(function()
+        while escuchaActiva do
+            mutedUsersCache = ObtenerListaModeracion(mutedUsersURL) or {}
+            imagesDisabledCache = ObtenerListaModeracion(imagesDisabledURL) or {}
+            task.wait(3)
+        end
+    end)
+end
+
+-- Verificaciones rápidas
+local function EstaMuteado(username)
+    return mutedUsersCache[username] ~= nil
+end
+
+local function TieneImagenesDesactivadas(username)
+    return imagesDisabledCache[username] ~= nil
+end
+
+-- Agregar/Quitar de listas (más robusto)
+local function AgregarAModeracion(url, username)
+    local data = {}
+    data[username] = true
+    local json = HttpService:JSONEncode(data)
+    pcall(function()
+        request({
+            Url = url,
+            Method = "PATCH",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = json
+        })
+    end)
+end
+
+local function QuitarDeModeracion(url, username)
+    -- Primero obtenemos todas las claves
+    local success, response = pcall(function()
+        return request({ Url = url, Method = "GET" })
+    end)
+    if success and response and response.Body then
+        local ok, data = pcall(function()
+            return HttpService:JSONDecode(response.Body)
+        end)
+        if ok and typeof(data) == "table" then
+            for key, val in pairs(data) do
+                if val == true then
+                    -- Borrar esa clave específica
+                    pcall(function()
+                        request({
+                            Url = url:gsub("%.json$", "") .. "/" .. key .. ".json",
+                            Method = "DELETE"
+                        })
+                    end)
+                    break
+                end
+            end
+        end
+    end
+end
+
+-- Funciones específicas
+local function MuterUsuario(username)
+    AgregarAModeracion(mutedUsersURL, username)
+end
+
+local function DesmutearUsuario(username)
+    QuitarDeModeracion(mutedUsersURL, username)
+end
+
+local function DesactivarImagenesUsuario(username)
+    AgregarAModeracion(imagesDisabledURL, username)
+end
+
+local function ActivarImagenesUsuario(username)
+    QuitarDeModeracion(imagesDisabledURL, username)
+end
+
+
 -- Comandos remotos
 local request = (syn and syn.request) or http_request or (fluxus and fluxus.request) or request
 
@@ -542,7 +646,8 @@ end
 ActualizarCacheServidores()
 
 
-
+-- Iniciar actualización de caches de moderación
+ActualizarCachesModeracion()
 
 
 
@@ -1422,6 +1527,148 @@ local lastClick_panel = 0
     }):Play()
 end
 
+
+-- Función para crear menú contextual de moderación (se llama al hacer clic en avatar)
+local function CrearMenuModeracion(container, username, messageId, avatarPos)
+    
+    
+    -- Solo para OWNERS
+
+    if not ChatScripters[player.Name] then return end
+
+    if not gui then
+        warn("⚠️ GUI no disponible para menú de moderación")
+        return
+    end
+
+    -- Eliminar menú anterior si existe
+    local old = gui:FindFirstChild("ModMenu")
+    if old then old:Destroy() end
+
+    local menu = Instance.new("Frame")
+    menu.Name = "ModMenu"
+    menu.Size = UDim2.new(0, 180, 0, 200)
+local screenWidth = workspace.CurrentCamera.ViewportSize.X
+local x = avatarPos.X + 10
+if x + 180 > screenWidth then
+    x = avatarPos.X - 190
+end
+menu.Position = UDim2.new(0, x, 0, avatarPos.Y - 10)
+    menu.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    menu.BorderSizePixel = 0
+    menu.ZIndex = 50
+    menu.Parent = gui
+
+    local corner = Instance.new("UICorner", menu)
+    corner.CornerRadius = UDim.new(0, 10)
+
+    local stroke = Instance.new("UIStroke", menu)
+    stroke.Color = Color3.fromRGB(88, 101, 242)
+    stroke.Thickness = 2
+
+    -- Opciones
+    local opciones = {
+        {"🗑 Eliminar mensaje", function()
+            pcall(function()
+                request({
+                    Url = "https://jxnc-60014-default-rtdb.firebaseio.com/Chat/" .. messageId .. ".json",
+                    Method = "DELETE"
+                })
+            end)
+            menu:Destroy()
+        end},
+        {"🧹 Eliminar todos los mensajes", function()
+            local success, response = pcall(function()
+                return request({ Url = firebaseURL, Method = "GET" })
+            end)
+            if success and response and response.Body then
+                local ok, data = pcall(function()
+                    return HttpService:JSONDecode(response.Body)
+                end)
+                if ok and typeof(data) == "table" then
+                    for key, msg in pairs(data) do
+                        if msg.username == username then
+                            pcall(function()
+                                request({
+                                    Url = "https://jxnc-60014-default-rtdb.firebaseio.com/Chat/" .. key .. ".json",
+                                    Method = "DELETE"
+                                })
+                            end)
+                        end
+                    end
+                end
+            end
+            menu:Destroy()
+        end},
+        {"🚫 Desactivar Chat", function()
+            MuterUsuario(username)
+            menu:Destroy()
+        end},
+        {"🖼 Desactivar Imágenes", function()
+            DesactivarImagenesUsuario(username)
+            menu:Destroy()
+        end}
+    }
+
+    local y = 8
+    for _, opt in ipairs(opciones) do
+        local btn = Instance.new("TextButton")
+        btn.Size = UDim2.new(1, -16, 0, 32)
+        btn.Position = UDim2.new(0, 8, 0, y)
+        btn.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+        btn.Text = opt[1]
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.Font = Enum.Font.GothamMedium
+        btn.TextSize = 13
+        btn.TextXAlignment = Enum.TextXAlignment.Left
+        btn.BorderSizePixel = 0
+        btn.ZIndex = 51
+        btn.Parent = menu
+
+        local btnCorner = Instance.new("UICorner", btn)
+        btnCorner.CornerRadius = UDim.new(0, 6)
+
+        btn.MouseButton1Click:Connect(function()
+            opt[2]()
+        end)
+
+        y = y + 38
+    end
+
+    -- Botón cerrar
+    local closeBtn = Instance.new("TextButton")
+    closeBtn.Size = UDim2.new(0, 24, 0, 24)
+    closeBtn.Position = UDim2.new(1, -30, 0, 6)
+    closeBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+    closeBtn.Text = "X"
+    closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeBtn.Font = Enum.Font.GothamBold
+    closeBtn.TextSize = 14
+    closeBtn.BorderSizePixel = 0
+    closeBtn.ZIndex = 52
+    closeBtn.Parent = menu
+
+    local closeCorner = Instance.new("UICorner", closeBtn)
+    closeCorner.CornerRadius = UDim.new(0, 6)
+
+    closeBtn.MouseButton1Click:Connect(function()
+        menu:Destroy()
+    end)
+
+    -- Cerrar al hacer clic fuera
+    local blocker = Instance.new("TextButton")
+    blocker.Size = UDim2.new(1, 0, 1, 0)
+    blocker.BackgroundTransparency = 1
+    blocker.Text = ""
+    blocker.ZIndex = 49
+    blocker.Parent = gui
+    blocker.MouseButton1Click:Connect(function()
+        menu:Destroy()
+        blocker:Destroy()
+    end)
+end
+
+
 -- FUNCIÓN: MOSTRAR MENSAJES
 local function showMessages(data)
     if not chatBox then return end
@@ -1607,6 +1854,32 @@ local esDiscordNoImagen = text:lower():find("discord") and
         local avatarStroke = Instance.new("UIStroke", avatarContainer)
         avatarStroke.Color = ChatScripters[username] and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(88, 101, 242)
         avatarStroke.Thickness = 2
+
+-- Evento para abrir menú de moderación (solo owners) - CORREGIDO
+avatarContainer.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if ChatScripters[player.Name] then
+            local absPos = avatarContainer.AbsolutePosition
+            local ok, err = pcall(CrearMenuModeracion, container, username, messageId, absPos)
+            if not ok then
+                warn("❌ Error en menú de moderación:", err)
+            end
+        end
+    end
+end)
+
+-- Para móvil (también funciona con InputBegan y Touch)
+avatarContainer.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.Touch then
+        if ChatScripters[player.Name] then
+            local absPos = avatarContainer.AbsolutePosition
+            local ok, err = pcall(CrearMenuModeracion, container, username, messageId, absPos)
+            if not ok then
+                warn("❌ Error en menú de moderación (touch):", err)
+            end
+        end
+    end
+end)
 
         local avatar = Instance.new("ImageLabel")
         avatar.Name = "Avatar"
@@ -2162,6 +2435,9 @@ task.wait(0.1)
     _G.CHAT_PROCESANDO_MENSAJES = false -- siempre libera
     if not okInner then warn("❌ showMessages error:", errInner) end
 end
+
+
+
 local function EnviarNotificacionRespuesta(targetUsername, responderUsername, mensaje)
     task.spawn(function()
         local notificationData = {
@@ -2523,6 +2799,287 @@ end
 
  local discordStartPos = isMobile and 115 or 220
     
+
+-- Botón de Moderación (solo para OWNERS)
+if ChatScripters[player.Name] then
+    local modBtn = Instance.new("TextButton")
+    modBtn.Name = "ModerationButton"
+    modBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
+    modBtn.Position = UDim2.new(1, -(btnSize * 6 + 25), 0.5, -btnSize/2)  -- Ajusta según la posición de otros botones
+    modBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242)
+    modBtn.Text = "🛡️"
+    modBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    modBtn.Font = Enum.Font.GothamBold
+    modBtn.TextSize = isMobile and 14 or 18
+    modBtn.BorderSizePixel = 0
+    modBtn.ZIndex = 12
+    modBtn.Parent = titleBar
+
+    local modCorner = Instance.new("UICorner", modBtn)
+    modCorner.CornerRadius = UDim.new(0, 6)
+
+    AgregarEfectoHover(modBtn, Color3.fromRGB(88, 101, 242), Color3.fromRGB(108, 121, 255))
+
+    -- Variable y función para el panel
+    local modPanel = nil
+
+    local function AbrirPanelModeracion()
+        if modPanel and modPanel.Parent then
+            modPanel:Destroy()
+            modPanel = nil
+            return
+        end
+
+        local panelW = isMobile and 280 or 340
+        local panelH = isMobile and 400 or 450
+
+        modPanel = Instance.new("Frame")
+        modPanel.Name = "ModPanel"
+        modPanel.Size = UDim2.new(0, panelW, 0, panelH)
+        modPanel.Position = UDim2.new(0.5, -panelW/2, 0.5, -panelH/2)
+        modPanel.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+        modPanel.BorderSizePixel = 0
+        modPanel.ZIndex = 30
+        modPanel.Parent = gui
+
+        local panelCorner = Instance.new("UICorner", modPanel)
+        panelCorner.CornerRadius = UDim.new(0, 14)
+
+        local panelStroke = Instance.new("UIStroke", modPanel)
+        panelStroke.Color = Color3.fromRGB(88, 101, 242)
+        panelStroke.Thickness = 2
+
+        -- Título
+        local titleBarMod = Instance.new("Frame")
+        titleBarMod.Size = UDim2.new(1, 0, 0, 40)
+        titleBarMod.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+        titleBarMod.BorderSizePixel = 0
+        titleBarMod.ZIndex = 31
+        titleBarMod.Parent = modPanel
+
+        local titleCornerMod = Instance.new("UICorner", titleBarMod)
+        titleCornerMod.CornerRadius = UDim.new(0, 14)
+
+        local titleMod = Instance.new("TextLabel")
+        titleMod.Size = UDim2.new(1, -40, 1, 0)
+        titleMod.Position = UDim2.new(0, 14, 0, 0)
+        titleMod.BackgroundTransparency = 1
+        titleMod.Text = "🛡️ Moderación"
+        titleMod.TextColor3 = Color3.fromRGB(255, 255, 255)
+        titleMod.Font = Enum.Font.GothamBold
+        titleMod.TextSize = 16
+        titleMod.TextXAlignment = Enum.TextXAlignment.Left
+        titleMod.ZIndex = 32
+        titleMod.Parent = titleBarMod
+
+        local closeModBtn = Instance.new("TextButton")
+        closeModBtn.Size = UDim2.new(0, 30, 0, 30)
+        closeModBtn.Position = UDim2.new(1, -36, 0.5, -15)
+        closeModBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+        closeModBtn.Text = "X"
+        closeModBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        closeModBtn.Font = Enum.Font.GothamBold
+        closeModBtn.TextSize = 16
+        closeModBtn.BorderSizePixel = 0
+        closeModBtn.ZIndex = 32
+        closeModBtn.Parent = titleBarMod
+        local closeCornerMod = Instance.new("UICorner", closeModBtn)
+        closeCornerMod.CornerRadius = UDim.new(0, 8)
+        closeModBtn.MouseButton1Click:Connect(function()
+            modPanel:Destroy()
+            modPanel = nil
+        end)
+
+        -- Scroll de contenido
+        local scrollMod = Instance.new("ScrollingFrame")
+        scrollMod.Size = UDim2.new(1, -16, 1, -60)
+        scrollMod.Position = UDim2.new(0, 8, 0, 50)
+        scrollMod.BackgroundTransparency = 1
+        scrollMod.BorderSizePixel = 0
+        scrollMod.ScrollBarThickness = 4
+        scrollMod.ScrollBarImageColor3 = Color3.fromRGB(88, 101, 242)
+        scrollMod.AutomaticCanvasSize = Enum.AutomaticSize.Y
+        scrollMod.CanvasSize = UDim2.new(0, 0, 0, 0)
+        scrollMod.ZIndex = 31
+        scrollMod.Parent = modPanel
+
+        local modLayout = Instance.new("UIListLayout", scrollMod)
+        modLayout.SortOrder = Enum.SortOrder.LayoutOrder
+        modLayout.Padding = UDim.new(0, 10)
+
+        local modPadding = Instance.new("UIPadding", scrollMod)
+        modPadding.PaddingLeft = UDim.new(0, 4)
+        modPadding.PaddingRight = UDim.new(0, 4)
+        modPadding.PaddingTop = UDim.new(0, 6)
+        modPadding.PaddingBottom = UDim.new(0, 6)
+
+        -- Función para actualizar el panel (lee caches)
+        local function ActualizarPanel()
+            -- Limpiar
+            for _, child in ipairs(scrollMod:GetChildren()) do
+                if not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
+                    child:Destroy()
+                end
+            end
+
+            -- Sección Chats desactivados
+            local mutedCount = 0
+            for _ in pairs(mutedUsersCache) do mutedCount = mutedCount + 1 end
+
+            local headerMuted = Instance.new("TextLabel")
+            headerMuted.Size = UDim2.new(1, 0, 0, 28)
+            headerMuted.BackgroundTransparency = 1
+            headerMuted.Text = "🚫 Chats desactivados (" .. mutedCount .. ")"
+            headerMuted.TextColor3 = Color3.fromRGB(255, 100, 100)
+            headerMuted.Font = Enum.Font.GothamBold
+            headerMuted.TextSize = 14
+            headerMuted.TextXAlignment = Enum.TextXAlignment.Left
+            headerMuted.ZIndex = 32
+            headerMuted.Parent = scrollMod
+
+            if mutedCount == 0 then
+                local empty = Instance.new("TextLabel")
+                empty.Size = UDim2.new(1, 0, 0, 30)
+                empty.BackgroundTransparency = 1
+                empty.Text = "✅ No hay usuarios con el chat desactivado."
+                empty.TextColor3 = Color3.fromRGB(100, 200, 100)
+                empty.Font = Enum.Font.GothamMedium
+                empty.TextSize = 12
+                empty.TextXAlignment = Enum.TextXAlignment.Left
+                empty.ZIndex = 32
+                empty.Parent = scrollMod
+            else
+                for username, _ in pairs(mutedUsersCache) do
+                    local row = Instance.new("Frame")
+                    row.Size = UDim2.new(1, 0, 0, 36)
+                    row.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+                    row.BorderSizePixel = 0
+                    row.ZIndex = 32
+                    row.Parent = scrollMod
+                    local rowCorner = Instance.new("UICorner", row)
+                    rowCorner.CornerRadius = UDim.new(0, 6)
+
+                    local nameLabel = Instance.new("TextLabel")
+                    nameLabel.Size = UDim2.new(0.7, 0, 1, 0)
+                    nameLabel.BackgroundTransparency = 1
+                    nameLabel.Text = "👤 " .. username
+                    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    nameLabel.Font = Enum.Font.GothamMedium
+                    nameLabel.TextSize = 13
+                    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+                    nameLabel.ZIndex = 33
+                    nameLabel.Parent = row
+
+                    local activateBtn = Instance.new("TextButton")
+                    activateBtn.Size = UDim2.new(0, 80, 0, 28)
+                    activateBtn.Position = UDim2.new(1, -86, 0.5, -14)
+                    activateBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
+                    activateBtn.Text = "✅ Activar"
+                    activateBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    activateBtn.Font = Enum.Font.GothamBold
+                    activateBtn.TextSize = 12
+                    activateBtn.BorderSizePixel = 0
+                    activateBtn.ZIndex = 33
+                    activateBtn.Parent = row
+                    local actCorner = Instance.new("UICorner", activateBtn)
+                    actCorner.CornerRadius = UDim.new(0, 6)
+
+                    activateBtn.MouseButton1Click:Connect(function()
+                        DesmutearUsuario(username)
+                    end)
+                end
+            end
+
+            -- Sección Imágenes desactivadas
+            local imgCount = 0
+            for _ in pairs(imagesDisabledCache) do imgCount = imgCount + 1 end
+
+            local headerImg = Instance.new("TextLabel")
+            headerImg.Size = UDim2.new(1, 0, 0, 28)
+            headerImg.BackgroundTransparency = 1
+            headerImg.Text = "🖼 Imágenes desactivadas (" .. imgCount .. ")"
+            headerImg.TextColor3 = Color3.fromRGB(255, 165, 0)
+            headerImg.Font = Enum.Font.GothamBold
+            headerImg.TextSize = 14
+            headerImg.TextXAlignment = Enum.TextXAlignment.Left
+            headerImg.ZIndex = 32
+            headerImg.Parent = scrollMod
+
+            if imgCount == 0 then
+                local emptyImg = Instance.new("TextLabel")
+                emptyImg.Size = UDim2.new(1, 0, 0, 30)
+                emptyImg.BackgroundTransparency = 1
+                emptyImg.Text = "✅ Todos los usuarios pueden enviar imágenes."
+                emptyImg.TextColor3 = Color3.fromRGB(100, 200, 100)
+                emptyImg.Font = Enum.Font.GothamMedium
+                emptyImg.TextSize = 12
+                emptyImg.TextXAlignment = Enum.TextXAlignment.Left
+                emptyImg.ZIndex = 32
+                emptyImg.Parent = scrollMod
+            else
+                for username, _ in pairs(imagesDisabledCache) do
+                    local row = Instance.new("Frame")
+                    row.Size = UDim2.new(1, 0, 0, 36)
+                    row.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+                    row.BorderSizePixel = 0
+                    row.ZIndex = 32
+                    row.Parent = scrollMod
+                    local rowCorner = Instance.new("UICorner", row)
+                    rowCorner.CornerRadius = UDim.new(0, 6)
+
+                    local nameLabel = Instance.new("TextLabel")
+                    nameLabel.Size = UDim2.new(0.7, 0, 1, 0)
+                    nameLabel.BackgroundTransparency = 1
+                    nameLabel.Text = "👤 " .. username
+                    nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    nameLabel.Font = Enum.Font.GothamMedium
+                    nameLabel.TextSize = 13
+                    nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+                    nameLabel.ZIndex = 33
+                    nameLabel.Parent = row
+
+                    local activateBtn = Instance.new("TextButton")
+                    activateBtn.Size = UDim2.new(0, 80, 0, 28)
+                    activateBtn.Position = UDim2.new(1, -86, 0.5, -14)
+                    activateBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
+                    activateBtn.Text = "✅ Activar"
+                    activateBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    activateBtn.Font = Enum.Font.GothamBold
+                    activateBtn.TextSize = 12
+                    activateBtn.BorderSizePixel = 0
+                    activateBtn.ZIndex = 33
+                    activateBtn.Parent = row
+                    local actCorner = Instance.new("UICorner", activateBtn)
+                    actCorner.CornerRadius = UDim.new(0, 6)
+
+                    activateBtn.MouseButton1Click:Connect(function()
+                        ActivarImagenesUsuario(username)
+                    end)
+                end
+            end
+        end
+
+        -- Actualización inicial
+        ActualizarPanel()
+
+        -- Bucle de actualización en tiempo real (cada 3s)
+        task.spawn(function()
+            while modPanel and modPanel.Parent do
+                task.wait(3)
+                ActualizarPanel()
+            end
+        end)
+
+        -- Animación de apertura
+        modPanel.Size = UDim2.new(0, 0, 0, 0)
+        TweenService:Create(modPanel, TweenInfo.new(0.3, Enum.EasingStyle.Back), {
+            Size = UDim2.new(0, panelW, 0, panelH)
+        }):Play()
+    end
+
+    modBtn.MouseButton1Click:Connect(AbrirPanelModeracion)
+end
+
     -- 🚀 NUEVO: BOTÓN DE PERMITIR UNIRSE
 -- 🌐 BOTÓN DEL MINI MENÚ DE SERVIDOR
     local serverMenuBtn = Instance.new("TextButton")
@@ -3444,6 +4001,29 @@ titleBar.InputBegan:Connect(function(input)
         
         local texto = textBox.Text:gsub("^%s*(.-)%s*$", "%1")
         
+        -- Verificar si el usuario está muteado
+if EstaMuteado(player.Name) then
+    textBox.PlaceholderText = "🚫 Estás muteado"
+    textBox.PlaceholderColor3 = Color3.fromRGB(255, 80, 80)
+    task.wait(2)
+    textBox.PlaceholderText = "💬 Escribe mensaje o pega URL de imagen..."
+    textBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+    enviandoMensaje = false
+    return
+end
+
+-- Verificar si tiene imágenes desactivadas
+local urlImagen = DetectarURLImagen(texto)
+if urlImagen and TieneImagenesDesactivadas(player.Name) then
+    textBox.PlaceholderText = "🚫 No puedes enviar imágenes"
+    textBox.PlaceholderColor3 = Color3.fromRGB(255, 80, 80)
+    task.wait(2)
+    textBox.PlaceholderText = "💬 Escribe mensaje o pega URL de imagen..."
+    textBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+    enviandoMensaje = false
+    return
+end
+
         if texto ~= "" and #texto <= 500 then
             enviandoMensaje = true
             sendButton.Text = "⏳"
