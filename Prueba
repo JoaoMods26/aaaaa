@@ -2808,7 +2808,7 @@ local nameLabel = Instance.new("TextLabel")
         local winW = isMobile and math.min(viewport.X * 0.88, 320) or 380
         local winH = isMobile and 340 or 400
 
-        serversWindow = Instance.new("Frame")
+serversWindow = Instance.new("Frame")
         serversWindow.Name = "ServersWindow"
         serversWindow.Size = UDim2.new(0, 0, 0, 0)
         serversWindow.Position = UDim2.new(0.5, -winW/2, 0.5, -winH/2)
@@ -2818,7 +2818,12 @@ local nameLabel = Instance.new("TextLabel")
         serversWindow.Parent = gui
 
         local winCorner = Instance.new("UICorner", serversWindow)
-        winCorner.CornerRadius = UDim.new(0, 14)
+        winCorner.CornerRadius = UDim.new(0, 16)
+
+        local winStroke = Instance.new("UIStroke", serversWindow)
+        winStroke.Color = Color3.fromRGB(88, 101, 242)
+        winStroke.Thickness = 1.5
+        winStroke.Transparency = 0.3
 
 
         -- Shadow
@@ -2835,27 +2840,34 @@ local nameLabel = Instance.new("TextLabel")
         winShadow.Parent = serversWindow
 
         -- Header
-        local winHeader = Instance.new("Frame")
+       local winHeader = Instance.new("Frame")
         winHeader.Size = UDim2.new(1, 0, 0, isMobile and 40 or 48)
-        winHeader.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+        winHeader.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
         winHeader.BorderSizePixel = 0
+        winHeader.ClipsDescendants = true
         winHeader.ZIndex = 31
         winHeader.Parent = serversWindow
 
         local winHeaderCorner = Instance.new("UICorner", winHeader)
-        winHeaderCorner.CornerRadius = UDim.new(0, 14)
+        winHeaderCorner.CornerRadius = UDim.new(0, 16)
 
-        local winTitle = Instance.new("TextLabel")
+local winTitle = Instance.new("TextLabel")
         winTitle.Size = UDim2.new(0.7, 0, 1, 0)
         winTitle.Position = UDim2.new(0, 14, 0, 0)
         winTitle.BackgroundTransparency = 1
         winTitle.Text = "🌐 Servidores Disponibles"
-        winTitle.TextColor3 = Color3.fromRGB(67, 181, 129)
+        winTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
         winTitle.Font = Enum.Font.GothamBold
         winTitle.TextSize = isMobile and 13 or 15
         winTitle.TextXAlignment = Enum.TextXAlignment.Left
         winTitle.ZIndex = 32
         winTitle.Parent = winHeader
+
+        local winTitleGradient = Instance.new("UIGradient", winTitle)
+        winTitleGradient.Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(67, 181, 129)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 200, 255))
+        }
 
         local countBadge = Instance.new("TextLabel")
         countBadge.Name = "CountBadge"
@@ -2958,31 +2970,55 @@ local nameLabel = Instance.new("TextLabel")
         local btnAbsPos = serverMenuBtn.AbsolutePosition
         local btnAbsSize = serverMenuBtn.AbsoluteSize
 
-        serverMiniMenu = Instance.new("Frame")
+serverMiniMenu = Instance.new("Frame")
         serverMiniMenu.Name = "ServerMiniMenu"
         serverMiniMenu.Size = UDim2.new(0, 0, 0, 0)
         serverMiniMenu.Position = UDim2.new(0, btnAbsPos.X - menuW/2 + btnAbsSize.X/2, 0, btnAbsPos.Y + btnAbsSize.Y + 8)
-        serverMiniMenu.BackgroundColor3 = Color3.fromRGB(22, 22, 28)
+        serverMiniMenu.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
         serverMiniMenu.BorderSizePixel = 0
         serverMiniMenu.ZIndex = 25
-        serverMiniMenu.ClipsDescendants = true
+        serverMiniMenu.ClipsDescendants = false
         serverMiniMenu.Parent = gui
 
         local menuCorner = Instance.new("UICorner", serverMiniMenu)
-        menuCorner.CornerRadius = UDim.new(0, 12)
+        menuCorner.CornerRadius = UDim.new(0, 14)
+
+        local menuStroke = Instance.new("UIStroke", serverMiniMenu)
+        menuStroke.Color = Color3.fromRGB(88, 101, 242)
+        menuStroke.Thickness = 1.5
+        menuStroke.Transparency = 0.3
+
+        local menuShadow = Instance.new("ImageLabel")
+        menuShadow.Size = UDim2.new(1, 30, 1, 30)
+        menuShadow.Position = UDim2.new(0, -15, 0, -15)
+        menuShadow.BackgroundTransparency = 1
+        menuShadow.Image = "rbxassetid://5554236805"
+        menuShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+        menuShadow.ImageTransparency = 0.55
+        menuShadow.ScaleType = Enum.ScaleType.Slice
+        menuShadow.SliceCenter = Rect.new(23, 23, 277, 277)
+        menuShadow.ZIndex = 24
+        menuShadow.Parent = serverMiniMenu
 
 
         -- Título
-        local menuTitle = Instance.new("TextLabel")
-        menuTitle.Size = UDim2.new(1, -10, 0, isMobile and 28 or 32)
-        menuTitle.Position = UDim2.new(0, 5, 0, 5)
+local menuTitle = Instance.new("TextLabel")
+        menuTitle.Size = UDim2.new(1, -16, 0, isMobile and 28 or 32)
+        menuTitle.Position = UDim2.new(0, 10, 0, 6)
         menuTitle.BackgroundTransparency = 1
         menuTitle.Text = "🌐  Menú de Servidor"
-        menuTitle.TextColor3 = Color3.fromRGB(200, 200, 255)
+        menuTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
         menuTitle.Font = Enum.Font.GothamBold
-        menuTitle.TextSize = isMobile and 11 or 13
+        menuTitle.TextSize = isMobile and 12 or 14
+        menuTitle.TextXAlignment = Enum.TextXAlignment.Left
         menuTitle.ZIndex = 26
         menuTitle.Parent = serverMiniMenu
+
+        local menuTitleGradient = Instance.new("UIGradient", menuTitle)
+        menuTitleGradient.Color = ColorSequence.new{
+            ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 170, 255)),
+            ColorSequenceKeypoint.new(1, Color3.fromRGB(138, 43, 226))
+        }
 
         -- Separador
         local sep = Instance.new("Frame")
@@ -2996,16 +3032,21 @@ local nameLabel = Instance.new("TextLabel")
         -- Toggle Allow Join
         local toggleY = isMobile and 44 or 48
 
-        local toggleRow = Instance.new("Frame")
+local toggleRow = Instance.new("Frame")
         toggleRow.Size = UDim2.new(1, -16, 0, isMobile and 36 or 40)
         toggleRow.Position = UDim2.new(0, 8, 0, toggleY)
-        toggleRow.BackgroundColor3 = Color3.fromRGB(30, 30, 38)
+        toggleRow.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
         toggleRow.BorderSizePixel = 0
         toggleRow.ZIndex = 26
         toggleRow.Parent = serverMiniMenu
 
         local toggleRowCorner = Instance.new("UICorner", toggleRow)
-        toggleRowCorner.CornerRadius = UDim.new(0, 8)
+        toggleRowCorner.CornerRadius = UDim.new(0, 10)
+
+        local toggleRowStroke = Instance.new("UIStroke", toggleRow)
+        toggleRowStroke.Color = Color3.fromRGB(60, 60, 75)
+        toggleRowStroke.Thickness = 1
+        toggleRowStroke.Transparency = 0.4
 
         local toggleLabel = Instance.new("TextLabel")
         toggleLabel.Size = UDim2.new(0.65, 0, 1, 0)
@@ -3087,7 +3128,7 @@ local nameLabel = Instance.new("TextLabel")
         -- Botón VER SERVIDORES
         local seeServersY = countY + (isMobile and 28 or 32)
 
-        local seeServersBtn = Instance.new("TextButton")
+local seeServersBtn = Instance.new("TextButton")
         seeServersBtn.Size = UDim2.new(1, -16, 0, isMobile and 34 or 38)
         seeServersBtn.Position = UDim2.new(0, 8, 0, seeServersY)
         seeServersBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
@@ -3096,11 +3137,14 @@ local nameLabel = Instance.new("TextLabel")
         seeServersBtn.Font = Enum.Font.GothamBold
         seeServersBtn.TextSize = isMobile and 11 or 13
         seeServersBtn.BorderSizePixel = 0
+        seeServersBtn.AutoButtonColor = false
         seeServersBtn.ZIndex = 27
         seeServersBtn.Parent = serverMiniMenu
 
         local seeServersBtnCorner = Instance.new("UICorner", seeServersBtn)
-        seeServersBtnCorner.CornerRadius = UDim.new(0, 8)
+        seeServersBtnCorner.CornerRadius = UDim.new(0, 10)
+
+        AgregarEfectoHover(seeServersBtn, Color3.fromRGB(67, 181, 129), Color3.fromRGB(87, 201, 149))
 
 
         -- Calcular altura total del menú
@@ -3527,44 +3571,91 @@ titleBar.InputBegan:Connect(function(input)
     end)
 
     -- PANEL DE CONFIGURACIÓN
-local settingsPanelWidth = isMobile and 220 or 240
-    local settingsPanelHeight = isMobile and 260 or 280
+local settingsPanelWidth = isMobile and 240 or 260
+    local settingsPanelHeight = isMobile and 270 or 290
 
     settingsFrame = Instance.new("Frame")
     settingsFrame.Name = "SettingsPanel"
     settingsFrame.Size = UDim2.new(0, settingsPanelWidth, 0, settingsPanelHeight)
     settingsFrame.Position = UDim2.new(0.5, -settingsPanelWidth/2, 0.5, -settingsPanelHeight/2)
-    settingsFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    settingsFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
     settingsFrame.BorderSizePixel = 0
     settingsFrame.Visible = false
+    settingsFrame.ClipsDescendants = false
     settingsFrame.ZIndex = 20
     settingsFrame.Parent = gui
 
     local settingsFrameCorner = Instance.new("UICorner", settingsFrame)
-    settingsFrameCorner.CornerRadius = UDim.new(0, 12)
+    settingsFrameCorner.CornerRadius = UDim.new(0, 14)
 
     local settingsBorder = Instance.new("UIStroke", settingsFrame)
     settingsBorder.Color = Color3.fromRGB(88, 101, 242)
-    settingsBorder.Thickness = 2
+    settingsBorder.Thickness = 1.5
+    settingsBorder.Transparency = 0.3
+
+    -- Sombra (igual estilo que MainFrame)
+    local settingsShadow = Instance.new("ImageLabel")
+    settingsShadow.Name = "Shadow"
+    settingsShadow.Size = UDim2.new(1, 30, 1, 30)
+    settingsShadow.Position = UDim2.new(0, -15, 0, -15)
+    settingsShadow.BackgroundTransparency = 1
+    settingsShadow.Image = "rbxassetid://5554236805"
+    settingsShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+    settingsShadow.ImageTransparency = 0.5
+    settingsShadow.ScaleType = Enum.ScaleType.Slice
+    settingsShadow.SliceCenter = Rect.new(23, 23, 277, 277)
+    settingsShadow.ZIndex = 19
+    settingsShadow.Parent = settingsFrame
+
+    -- Title bar con degradado (igual que el chat)
+    local settingsTitleBar = Instance.new("Frame")
+    settingsTitleBar.Name = "SettingsTitleBar"
+    settingsTitleBar.Size = UDim2.new(1, 0, 0, isMobile and 34 or 38)
+    settingsTitleBar.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    settingsTitleBar.BorderSizePixel = 0
+    settingsTitleBar.ClipsDescendants = true
+    settingsTitleBar.ZIndex = 21
+    settingsTitleBar.Parent = settingsFrame
+
+    local settingsTitleBarCorner = Instance.new("UICorner", settingsTitleBar)
+    settingsTitleBarCorner.CornerRadius = UDim.new(0, 14)
 
     local settingsTitle = Instance.new("TextLabel")
     settingsTitle.Name = "PanelTitle"
-    settingsTitle.Size = UDim2.new(1, 0, 0, isMobile and 30 or 35)
-    settingsTitle.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
-    settingsTitle.Text = "⚙️ CONFIGURACIÓN"
+    settingsTitle.Size = UDim2.new(1, -20, 1, 0)
+    settingsTitle.Position = UDim2.new(0, 12, 0, 0)
+    settingsTitle.BackgroundTransparency = 1
+    settingsTitle.Text = "⚙️ Configuración"
     settingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
     settingsTitle.Font = Enum.Font.GothamBold
-    settingsTitle.TextSize = isMobile and 12 or 14
-    settingsTitle.ZIndex = 21
-    settingsTitle.Parent = settingsFrame
+    settingsTitle.TextSize = isMobile and 13 or 15
+    settingsTitle.TextXAlignment = Enum.TextXAlignment.Left
+    settingsTitle.ZIndex = 22
+    settingsTitle.Parent = settingsTitleBar
 
-    local settingsTitleCorner = Instance.new("UICorner", settingsTitle)
-    settingsTitleCorner.CornerRadius = UDim.new(0, 12)
+    local settingsTitleGradient = Instance.new("UIGradient", settingsTitle)
+    settingsTitleGradient.Color = ColorSequence.new{
+        ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 170, 255)),
+        ColorSequenceKeypoint.new(0.5, Color3.fromRGB(138, 43, 226)),
+        ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 127))
+    }
+    settingsTitleGradient.Rotation = 45
+
+    task.spawn(function()
+        while settingsTitleBar and settingsTitleBar.Parent do
+            for i = 0, 360, 3 do
+                if settingsTitleGradient and settingsTitleGradient.Parent then
+                    settingsTitleGradient.Rotation = i
+                end
+                task.wait(0.04)
+            end
+        end
+    end)
 
     local transparencyLabel = Instance.new("TextLabel")
     transparencyLabel.Size = UDim2.new(1, -20, 0, 18)
-    transparencyLabel.Position = UDim2.new(0, 10, 0, isMobile and 38 or 45)
-    transparencyLabel.BackgroundTransparency = 1
+    transparencyLabel.Position = UDim2.new(0, 12, 0, isMobile and 46 or 52)
+transparencyLabel.BackgroundTransparency = 1
     transparencyLabel.Text = "Transparencia (0-1):"
     transparencyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     transparencyLabel.Font = Enum.Font.Gotham
@@ -3576,7 +3667,7 @@ local settingsPanelWidth = isMobile and 220 or 240
     local transparencyInput = Instance.new("TextBox")
     transparencyInput.Name = "TransparencyInput"
     transparencyInput.Size = UDim2.new(1, -20, 0, isMobile and 28 or 32)
-    transparencyInput.Position = UDim2.new(0, 10, 0, isMobile and 58 or 68)
+        transparencyInput.Position = UDim2.new(0, 12, 0, isMobile and 66 or 75)
     transparencyInput.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
     transparencyInput.PlaceholderText = "0.5"
     transparencyInput.Text = tostring(config.Transparency or 0)
@@ -3591,7 +3682,7 @@ local settingsPanelWidth = isMobile and 220 or 240
 
     local imageLabel = Instance.new("TextLabel")
     imageLabel.Size = UDim2.new(1, -20, 0, 18)
-    imageLabel.Position = UDim2.new(0, 10, 0, isMobile and 94 or 108)
+        imageLabel.Position = UDim2.new(0, 12, 0, isMobile and 102 or 115)
     imageLabel.BackgroundTransparency = 1
     imageLabel.Text = "ID de Imagen:"
     imageLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -3604,8 +3695,8 @@ local settingsPanelWidth = isMobile and 220 or 240
     local imageInput = Instance.new("TextBox")
     imageInput.Name = "ImageInput"
     imageInput.Size = UDim2.new(1, -20, 0, isMobile and 28 or 32)
-    imageInput.Position = UDim2.new(0, 10, 0, isMobile and 114 or 131)
-    imageInput.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
+    imageInput.Position = UDim2.new(0, 12, 0, isMobile and 122 or 138)
+imageInput.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
     imageInput.PlaceholderText = "rbxassetid://123456"
     imageInput.Text = config.ImageId or ""
     imageInput.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -3620,7 +3711,7 @@ local imageCorner = Instance.new("UICorner", imageInput)
     ------toggle auto-descargar imágenes de links
     local downloadToggleLabel = Instance.new("TextLabel")
     downloadToggleLabel.Size = UDim2.new(1, -20, 0, 18)
-    downloadToggleLabel.Position = UDim2.new(0, 10, 0, isMobile and 150 or 172)
+    downloadToggleLabel.Position = UDim2.new(0, 12, 0, isMobile and 158 or 179)
     downloadToggleLabel.BackgroundTransparency = 1
     downloadToggleLabel.Text = "Permitir siempre imágenes (links):"
     downloadToggleLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
@@ -3630,26 +3721,52 @@ local imageCorner = Instance.new("UICorner", imageInput)
     downloadToggleLabel.ZIndex = 21
     downloadToggleLabel.Parent = settingsFrame
 
-    local downloadToggleBtn = Instance.new("TextButton")
+local downloadToggleBtn = Instance.new("Frame")
     downloadToggleBtn.Name = "DownloadToggleButton"
-    downloadToggleBtn.Size = UDim2.new(0, isMobile and 60 or 70, 0, isMobile and 24 or 28)
-    downloadToggleBtn.Position = UDim2.new(0, 10, 0, isMobile and 172 or 194)
-    downloadToggleBtn.BackgroundColor3 = PermitirDescargaImagenes and Color3.fromRGB(67, 181, 129) or Color3.fromRGB(80, 80, 90)
-    downloadToggleBtn.Text = PermitirDescargaImagenes and "✅ ON" or "❌ OFF"
-    downloadToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    downloadToggleBtn.Font = Enum.Font.GothamBold
-    downloadToggleBtn.TextSize = isMobile and 10 or 11
+    downloadToggleBtn.Size = UDim2.new(0, isMobile and 46 or 50, 0, isMobile and 22 or 24)
+    downloadToggleBtn.Position = UDim2.new(0, 12, 0, isMobile and 180 or 202)
+    downloadToggleBtn.BackgroundColor3 = PermitirDescargaImagenes and Color3.fromRGB(67, 181, 129) or Color3.fromRGB(60, 60, 70)
     downloadToggleBtn.BorderSizePixel = 0
     downloadToggleBtn.ZIndex = 21
     downloadToggleBtn.Parent = settingsFrame
 
     local downloadToggleCorner = Instance.new("UICorner", downloadToggleBtn)
-    downloadToggleCorner.CornerRadius = UDim.new(0, 6)
+    downloadToggleCorner.CornerRadius = UDim.new(1, 0)
 
-    downloadToggleBtn.MouseButton1Click:Connect(function()
+    local downloadHandle = Instance.new("Frame")
+    downloadHandle.Name = "Handle"
+    local handleSize = isMobile and 16 or 18
+    downloadHandle.Size = UDim2.new(0, handleSize, 0, handleSize)
+    downloadHandle.Position = PermitirDescargaImagenes
+        and UDim2.new(1, -handleSize - 3, 0.5, -handleSize/2)
+        or UDim2.new(0, 3, 0.5, -handleSize/2)
+    downloadHandle.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+    downloadHandle.BorderSizePixel = 0
+    downloadHandle.ZIndex = 22
+    downloadHandle.Parent = downloadToggleBtn
+
+    local downloadHandleCorner = Instance.new("UICorner", downloadHandle)
+    downloadHandleCorner.CornerRadius = UDim.new(1, 0)
+
+    local downloadToggleClick = Instance.new("TextButton")
+    downloadToggleClick.Size = UDim2.new(1, 0, 1, 0)
+    downloadToggleClick.BackgroundTransparency = 1
+    downloadToggleClick.Text = ""
+    downloadToggleClick.ZIndex = 23
+    downloadToggleClick.Parent = downloadToggleBtn
+
+    downloadToggleClick.MouseButton1Click:Connect(function()
         PermitirDescargaImagenes = not PermitirDescargaImagenes
-        downloadToggleBtn.BackgroundColor3 = PermitirDescargaImagenes and Color3.fromRGB(67, 181, 129) or Color3.fromRGB(80, 80, 90)
-        downloadToggleBtn.Text = PermitirDescargaImagenes and "✅ ON" or "❌ OFF"
+
+        TweenService:Create(downloadToggleBtn, TweenInfo.new(0.15), {
+            BackgroundColor3 = PermitirDescargaImagenes and Color3.fromRGB(67, 181, 129) or Color3.fromRGB(60, 60, 70)
+        }):Play()
+
+        TweenService:Create(downloadHandle, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Position = PermitirDescargaImagenes
+                and UDim2.new(1, -handleSize - 3, 0.5, -handleSize/2)
+                or UDim2.new(0, 3, 0.5, -handleSize/2)
+        }):Play()
 
         local existingConfig = CargarConfiguracion()
         existingConfig.PermitirDescargaImagenes = PermitirDescargaImagenes
