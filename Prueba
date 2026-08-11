@@ -17,6 +17,7 @@ local ChatScripters = {
     ["joao_mods26"] = true,
     ["donxexman"] = true,
     ["INFINITYH4CK"] = true,
+["Roblox"] = true,
     ["Juriesmiauwu"] = true
 }
 
