@@ -17,7 +17,7 @@ local ChatScripters = {
     ["joao_mods26"] = true,
     ["donxexman"] = true,
     ["INFINITYH4CK"] = true,
-["Roblox"] = true,
+["TheEvilGOD26"] = true,
     ["Juriesmiauwu"] = true
 }
 
@@ -549,7 +549,124 @@ end
 ActualizarCacheServidores()
 
 
-
+local sancionesURL = "https://jxnc-60014-default-rtdb.firebaseio.com/Sanciones.json"
+local sancionesData = {} -- caché local, se refresca sola cada 15s
+ 
+local function GuardarSancion(username, data)
+    task.spawn(function()
+        sancionesData[username] = data
+        local json = HttpService:JSONEncode(data)
+        pcall(function()
+            request({
+                Url = "https://jxnc-60014-default-rtdb.firebaseio.com/Sanciones/" .. username .. ".json",
+                Method = "PUT",
+                Headers = { ["Content-Type"] = "application/json" },
+                Body = json
+            })
+        end)
+    end)
+end
+ 
+local function EliminarSancion(username)
+    task.spawn(function()
+        sancionesData[username] = nil
+        pcall(function()
+            request({
+                Url = "https://jxnc-60014-default-rtdb.firebaseio.com/Sanciones/" .. username .. ".json",
+                Method = "DELETE"
+            })
+        end)
+    end)
+end
+ 
+-- tipo: "mute" (extra = minutos), "blockimages", "ban"
+local function AplicarSancion(username, tipo, extra, reason)
+    username = username:gsub("^%s*(.-)%s*$", "%1")
+    if username == "" then return false, "Nombre vacío" end
+    reason = (reason or ""):gsub("^%s*(.-)%s*$", "%1")
+ 
+    local existente = sancionesData[username] or {}
+    local nueva = {
+        banned = existente.banned or false,
+        muteUntil = existente.muteUntil,
+        blockImages = existente.blockImages or false,
+        reason = (reason ~= "" and reason) or existente.reason or "",
+        moderator = player.Name,
+        timestamp = os.time(),
+    }
+ 
+    if tipo == "mute" then
+        nueva.muteUntil = os.time() + (extra * 60)
+    elseif tipo == "blockimages" then
+        nueva.blockImages = true
+    elseif tipo == "ban" then
+        nueva.banned = true
+    end
+ 
+    GuardarSancion(username, nueva)
+    return true
+end
+ 
+local function ActualizarCacheSanciones()
+    task.spawn(function()
+        while true do
+            local ok, response = pcall(function()
+                return request({ Url = sancionesURL, Method = "GET" })
+            end)
+            if ok and response and response.Body then
+                local ok2, data = pcall(function()
+                    return HttpService:JSONDecode(response.Body)
+                end)
+                if ok2 then
+                    if typeof(data) == "table" then
+                        sancionesData = data
+                    elseif data == nil then
+                        sancionesData = {} -- nodo vacío en Firebase
+                    end
+                end
+            end
+            task.wait(15)
+        end
+    end)
+end
+ActualizarCacheSanciones()
+ 
+-- Chequea si el jugador LOCAL puede enviar un mensaje ahora mismo.
+-- Devuelve true si puede, false si está bloqueado (y ya mostró el aviso).
+local function VerificarSancionPropia()
+    local sancion = sancionesData[player.Name]
+    if not sancion then return true end
+ 
+    if sancion.banned then
+        textBox.PlaceholderText = "⛔ Baneado del chat" .. (sancion.reason ~= "" and (" — " .. sancion.reason) or "")
+        textBox.PlaceholderColor3 = Color3.fromRGB(255, 80, 80)
+        task.spawn(function()
+            task.wait(2.5)
+            if textBox and textBox.Parent then
+                textBox.PlaceholderText = "💬 Escribe mensaje o pega URL de imagen..."
+                textBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+            end
+        end)
+        return false
+    end
+ 
+    if sancion.muteUntil and sancion.muteUntil > os.time() then
+        local mins = math.ceil((sancion.muteUntil - os.time()) / 60)
+        textBox.PlaceholderText = "🔇 Muteado (" .. mins .. "m)" .. (sancion.reason ~= "" and (" — " .. sancion.reason) or "")
+        textBox.PlaceholderColor3 = Color3.fromRGB(255, 193, 7)
+        task.spawn(function()
+            task.wait(2.5)
+            if textBox and textBox.Parent then
+                textBox.PlaceholderText = "💬 Escribe mensaje o pega URL de imagen..."
+                textBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+            end
+        end)
+        return false
+    end
+ 
+    return true
+end
+ 
 
 
 
@@ -570,6 +687,20 @@ local function AgregarEfectoHover(boton, colorNormal, colorHover)
             TweenInfo.new(0.2, Enum.EasingStyle.Quad),
             {BackgroundColor3 = colorNormal}
         ):Play()
+    end)
+end
+
+local function MostrarFeedbackBtn(btn, texto, color, delay)
+    local originalText = btn.Text
+    local originalColor = btn.BackgroundColor3
+    btn.Text = texto
+    btn.BackgroundColor3 = color
+    task.spawn(function()
+        task.wait(delay or 1.2)
+        if btn and btn.Parent then
+            btn.Text = originalText
+            btn.BackgroundColor3 = originalColor
+        end
     end)
 end
 
@@ -2433,96 +2564,570 @@ local btnSize = isMobile and 22 or 28
         Color3.fromRGB(50, 50, 60), 
         Color3.fromRGB(70, 70, 80)
     )
-
-
-    
-
-    if ChatScripters[player.Name] then
-    local deleteBtn = Instance.new("TextButton")
-    deleteBtn.Name = "DeleteButton"
-    deleteBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
-deleteBtn.Position = UDim2.new(1, -(btnSize * 3 + 15), 0.5, -btnSize/2)
-    deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-    deleteBtn.Text = "🗑️"
-    deleteBtn.TextColor3 = Color3.new(1, 1, 1)
-    deleteBtn.Font = Enum.Font.GothamBold
-    deleteBtn.TextSize = isMobile and 14 or 18
-    deleteBtn.ZIndex = 12
-    deleteBtn.Parent = titleBar
-
-    local deleteCorner = Instance.new("UICorner", deleteBtn)
-    deleteCorner.CornerRadius = UDim.new(0, 6)
-
-    AgregarEfectoHover(deleteBtn, Color3.fromRGB(220, 53, 69), Color3.fromRGB(255, 70, 85))
-
-    deleteBtn.MouseButton1Click:Connect(function()
-        local originalSize = deleteBtn.Size
-        TweenService:Create(deleteBtn, TweenInfo.new(0.1), {Size = UDim2.new(0, btnSize - 4, 0, btnSize - 4)}):Play()
-        task.wait(0.1)
-        TweenService:Create(deleteBtn, TweenInfo.new(0.1), {Size = originalSize}):Play()
-
-        task.spawn(function()
-            -- ✅ Eliminar mensajes del chat
-            local successChat, responseChat = pcall(function()
-                return request({
-                    Url = firebaseURL,
-                    Method = "DELETE",
-                    Headers = { ["Content-Type"] = "application/json" }
-                })
-            end)
-            
-            --  Eliminar respuestas/notificaciones
-            local successRespuestas, responseRespuestas = pcall(function()
-                return request({
-                    Url = respuestasURL,
-                    Method = "DELETE",
-                    Headers = { ["Content-Type"] = "application/json" }
-                })
-            end)
-            
-            
-
-            
-if successChat and successRespuestas then
-                --
-                mensajesMostrados = {}
-                ultimoMensajeID = nil
-                
-                -- 
-                if chatBox then
-                    for _, child in ipairs(chatBox:GetChildren()) do
-                        if child:IsA("Frame") and child.Name:find("MessageContainer") then
-                            child:Destroy()
+if ChatScripters[player.Name] then
+        local adminBtn = Instance.new("TextButton")
+        adminBtn.Name = "AdminPanelButton"
+        adminBtn.Size = UDim2.new(0, btnSize, 0, btnSize)
+        adminBtn.Position = UDim2.new(1, -(btnSize * 3 + 15), 0.5, -btnSize/2)
+        adminBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+        adminBtn.Text = "🛡️"
+        adminBtn.TextColor3 = Color3.new(1, 1, 1)
+        adminBtn.Font = Enum.Font.GothamBold
+        adminBtn.TextSize = isMobile and 14 or 18
+        adminBtn.ZIndex = 12
+        adminBtn.Parent = titleBar
+ 
+        local adminBtnCorner = Instance.new("UICorner", adminBtn)
+        adminBtnCorner.CornerRadius = UDim.new(0, 6)
+ 
+        AgregarEfectoHover(adminBtn, Color3.fromRGB(220, 53, 69), Color3.fromRGB(255, 70, 85))
+ 
+        local adminPanelWindow = nil
+ 
+        local function CerrarAdminPanel()
+            if adminPanelWindow and adminPanelWindow.Parent then
+                TweenService:Create(adminPanelWindow, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+                    Size = UDim2.new(0, 0, 0, 0)
+                }):Play()
+                task.wait(0.22)
+                if adminPanelWindow then adminPanelWindow:Destroy() end
+                adminPanelWindow = nil
+            end
+        end
+ 
+        local function AbrirPanelAdmin()
+            if adminPanelWindow and adminPanelWindow.Parent then
+                CerrarAdminPanel()
+                return
+            end
+ 
+            local winW = isMobile and math.min(viewport.X * 0.90, 320) or 380
+            local winH = isMobile and math.min(viewport.Y * 0.75, 420) or 480
+ 
+            adminPanelWindow = Instance.new("Frame")
+            adminPanelWindow.Name = "AdminPanelWindow"
+            adminPanelWindow.Size = UDim2.new(0, 0, 0, 0)
+            adminPanelWindow.Position = UDim2.new(0.5, -winW / 2, 0.5, -winH / 2)
+            adminPanelWindow.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+            adminPanelWindow.BorderSizePixel = 0
+            adminPanelWindow.ZIndex = 40
+            adminPanelWindow.Parent = gui
+ 
+            local winCorner = Instance.new("UICorner", adminPanelWindow)
+            winCorner.CornerRadius = UDim.new(0, 16)
+            local winStroke = Instance.new("UIStroke", adminPanelWindow)
+            winStroke.Color = Color3.fromRGB(220, 53, 69)
+            winStroke.Thickness = 1.5
+            winStroke.Transparency = 0.3
+ 
+            local winShadow = Instance.new("ImageLabel")
+            winShadow.Size = UDim2.new(1, 30, 1, 30)
+            winShadow.Position = UDim2.new(0, -15, 0, -15)
+            winShadow.BackgroundTransparency = 1
+            winShadow.Image = "rbxassetid://5554236805"
+            winShadow.ImageColor3 = Color3.fromRGB(0, 0, 0)
+            winShadow.ImageTransparency = 0.6
+            winShadow.ScaleType = Enum.ScaleType.Slice
+            winShadow.SliceCenter = Rect.new(23, 23, 277, 277)
+            winShadow.ZIndex = 39
+            winShadow.Parent = adminPanelWindow
+ 
+            local winHeader = Instance.new("Frame")
+            winHeader.Size = UDim2.new(1, 0, 0, isMobile and 40 or 48)
+            winHeader.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+            winHeader.BorderSizePixel = 0
+            winHeader.ClipsDescendants = true
+            winHeader.ZIndex = 41
+            winHeader.Parent = adminPanelWindow
+ 
+            local winHeaderCorner = Instance.new("UICorner", winHeader)
+            winHeaderCorner.CornerRadius = UDim.new(0, 16)
+ 
+            local winTitle = Instance.new("TextLabel")
+            winTitle.Size = UDim2.new(0.7, 0, 1, 0)
+            winTitle.Position = UDim2.new(0, 14, 0, 0)
+            winTitle.BackgroundTransparency = 1
+            winTitle.Text = "🛡️ Panel de Administrador"
+            winTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+            winTitle.Font = Enum.Font.GothamBold
+            winTitle.TextSize = isMobile and 13 or 15
+            winTitle.TextXAlignment = Enum.TextXAlignment.Left
+            winTitle.ZIndex = 42
+            winTitle.Parent = winHeader
+ 
+            local winTitleGradient = Instance.new("UIGradient", winTitle)
+            winTitleGradient.Color = ColorSequence.new{
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(220, 53, 69)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 150, 60))
+            }
+ 
+            local winCloseBtn = Instance.new("TextButton")
+            winCloseBtn.Size = UDim2.new(0, isMobile and 30 or 34, 0, isMobile and 30 or 34)
+            winCloseBtn.Position = UDim2.new(1, -(isMobile and 36 or 42), 0.5, -(isMobile and 15 or 17))
+            winCloseBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            winCloseBtn.Text = "X"
+            winCloseBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            winCloseBtn.Font = Enum.Font.GothamBold
+            winCloseBtn.TextSize = isMobile and 14 or 16
+            winCloseBtn.BorderSizePixel = 0
+            winCloseBtn.ZIndex = 42
+            winCloseBtn.Parent = winHeader
+            local winCloseBtnCorner = Instance.new("UICorner", winCloseBtn)
+            winCloseBtnCorner.CornerRadius = UDim.new(0, 8)
+            winCloseBtn.MouseButton1Click:Connect(CerrarAdminPanel)
+ 
+            local adminScroll = Instance.new("ScrollingFrame")
+            adminScroll.Size = UDim2.new(1, -12, 1, -(isMobile and 50 or 58))
+            adminScroll.Position = UDim2.new(0, 6, 0, isMobile and 46 or 54)
+            adminScroll.BackgroundTransparency = 1
+            adminScroll.BorderSizePixel = 0
+            adminScroll.ScrollBarThickness = isMobile and 4 or 6
+            adminScroll.ScrollBarImageColor3 = Color3.fromRGB(220, 53, 69)
+            adminScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+            adminScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+            adminScroll.ZIndex = 41
+            adminScroll.Parent = adminPanelWindow
+ 
+            local adminLayout = Instance.new("UIListLayout", adminScroll)
+            adminLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            adminLayout.Padding = UDim.new(0, 10)
+ 
+            local adminPad = Instance.new("UIPadding", adminScroll)
+            adminPad.PaddingLeft = UDim.new(0, 4)
+            adminPad.PaddingRight = UDim.new(0, 4)
+            adminPad.PaddingTop = UDim.new(0, 6)
+            adminPad.PaddingBottom = UDim.new(0, 6)
+ 
+            -- ===== Borrar todo el chat =====
+            local clearSection = Instance.new("Frame")
+            clearSection.Size = UDim2.new(1, 0, 0, isMobile and 46 or 50)
+            clearSection.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+            clearSection.BorderSizePixel = 0
+            clearSection.LayoutOrder = 1
+            clearSection.ZIndex = 41
+            clearSection.Parent = adminScroll
+            local clearSectionCorner = Instance.new("UICorner", clearSection)
+            clearSectionCorner.CornerRadius = UDim.new(0, 10)
+ 
+            local clearChatBtn = Instance.new("TextButton")
+            clearChatBtn.Size = UDim2.new(1, -12, 1, -12)
+            clearChatBtn.Position = UDim2.new(0, 6, 0, 6)
+            clearChatBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            clearChatBtn.Text = "🗑️ Borrar TODO el chat y respuestas"
+            clearChatBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            clearChatBtn.Font = Enum.Font.GothamBold
+            clearChatBtn.TextSize = isMobile and 11 or 13
+            clearChatBtn.BorderSizePixel = 0
+            clearChatBtn.AutoButtonColor = false
+            clearChatBtn.ZIndex = 42
+            clearChatBtn.Parent = clearSection
+            local clearChatCorner = Instance.new("UICorner", clearChatBtn)
+            clearChatCorner.CornerRadius = UDim.new(0, 8)
+            AgregarEfectoHover(clearChatBtn, Color3.fromRGB(220, 53, 69), Color3.fromRGB(255, 70, 85))
+ 
+            clearChatBtn.MouseButton1Click:Connect(function()
+                task.spawn(function()
+                    local successChat = pcall(function()
+                        request({ Url = firebaseURL, Method = "DELETE", Headers = { ["Content-Type"] = "application/json" } })
+                    end)
+                    local successRespuestas = pcall(function()
+                        request({ Url = respuestasURL, Method = "DELETE", Headers = { ["Content-Type"] = "application/json" } })
+                    end)
+ 
+                    if successChat and successRespuestas then
+                        mensajesMostrados = {}
+                        ultimoMensajeID = nil
+                        if chatBox then
+                            for _, child in ipairs(chatBox:GetChildren()) do
+                                if child:IsA("Frame") and child.Name:find("MessageContainer") then
+                                    child:Destroy()
+                                end
+                            end
                         end
+                        MostrarFeedbackBtn(clearChatBtn, "✅ Chat borrado", Color3.fromRGB(67, 181, 129), 1.5)
+                    else
+                        MostrarFeedbackBtn(clearChatBtn, "❌ Error al borrar", Color3.fromRGB(255, 50, 50), 1.5)
+                    end
+                end)
+            end)
+ 
+            -- ===== Aplicar sanción =====
+            local formSection = Instance.new("Frame")
+            formSection.Size = UDim2.new(1, 0, 0, isMobile and 250 or 265)
+            formSection.BackgroundColor3 = Color3.fromRGB(28, 28, 36)
+            formSection.BorderSizePixel = 0
+            formSection.LayoutOrder = 2
+            formSection.ZIndex = 41
+            formSection.Parent = adminScroll
+            local formSectionCorner = Instance.new("UICorner", formSection)
+            formSectionCorner.CornerRadius = UDim.new(0, 10)
+ 
+            local formTitle = Instance.new("TextLabel")
+            formTitle.Size = UDim2.new(1, -16, 0, 18)
+            formTitle.Position = UDim2.new(0, 8, 0, 8)
+            formTitle.BackgroundTransparency = 1
+            formTitle.Text = "⚖️ Aplicar sanción"
+            formTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+            formTitle.Font = Enum.Font.GothamBold
+            formTitle.TextSize = isMobile and 11 or 13
+            formTitle.TextXAlignment = Enum.TextXAlignment.Left
+            formTitle.ZIndex = 42
+            formTitle.Parent = formSection
+ 
+            local userLabel = Instance.new("TextLabel")
+            userLabel.Size = UDim2.new(1, -16, 0, 14)
+            userLabel.Position = UDim2.new(0, 8, 0, 30)
+            userLabel.BackgroundTransparency = 1
+            userLabel.Text = "Usuario:"
+            userLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+            userLabel.Font = Enum.Font.Gotham
+            userLabel.TextSize = isMobile and 9 or 10
+            userLabel.TextXAlignment = Enum.TextXAlignment.Left
+            userLabel.ZIndex = 42
+            userLabel.Parent = formSection
+ 
+            local userInput = Instance.new("TextBox")
+            userInput.Size = UDim2.new(1, -16, 0, isMobile and 26 or 30)
+            userInput.Position = UDim2.new(0, 8, 0, 46)
+            userInput.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+            userInput.PlaceholderText = "NombreDeUsuario"
+            userInput.PlaceholderColor3 = Color3.fromRGB(100, 100, 115)
+            userInput.Text = ""
+            userInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+            userInput.Font = Enum.Font.Gotham
+            userInput.TextSize = isMobile and 10 or 12
+            userInput.ClearTextOnFocus = false
+            userInput.ZIndex = 42
+            userInput.Parent = formSection
+            local userInputCorner = Instance.new("UICorner", userInput)
+            userInputCorner.CornerRadius = UDim.new(0, 6)
+ 
+            local reasonLabel = Instance.new("TextLabel")
+            reasonLabel.Size = UDim2.new(1, -16, 0, 14)
+            reasonLabel.Position = UDim2.new(0, 8, 0, isMobile and 80 or 84)
+            reasonLabel.BackgroundTransparency = 1
+            reasonLabel.Text = "Motivo / comentario:"
+            reasonLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+            reasonLabel.Font = Enum.Font.Gotham
+            reasonLabel.TextSize = isMobile and 9 or 10
+            reasonLabel.TextXAlignment = Enum.TextXAlignment.Left
+            reasonLabel.ZIndex = 42
+            reasonLabel.Parent = formSection
+ 
+            local reasonInput = Instance.new("TextBox")
+            reasonInput.Size = UDim2.new(1, -16, 0, isMobile and 26 or 30)
+            reasonInput.Position = UDim2.new(0, 8, 0, isMobile and 96 or 100)
+            reasonInput.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+            reasonInput.PlaceholderText = "Ej: Spam, insultos, imágenes NSFW..."
+            reasonInput.PlaceholderColor3 = Color3.fromRGB(100, 100, 115)
+            reasonInput.Text = ""
+            reasonInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+            reasonInput.Font = Enum.Font.Gotham
+            reasonInput.TextSize = isMobile and 10 or 12
+            reasonInput.ClearTextOnFocus = false
+            reasonInput.ZIndex = 42
+            reasonInput.Parent = formSection
+            local reasonInputCorner = Instance.new("UICorner", reasonInput)
+            reasonInputCorner.CornerRadius = UDim.new(0, 6)
+ 
+            local muteLabel = Instance.new("TextLabel")
+            muteLabel.Size = UDim2.new(0.5, -12, 0, 14)
+            muteLabel.Position = UDim2.new(0, 8, 0, isMobile and 130 or 138)
+            muteLabel.BackgroundTransparency = 1
+            muteLabel.Text = "Minutos de mute:"
+            muteLabel.TextColor3 = Color3.fromRGB(180, 180, 200)
+            muteLabel.Font = Enum.Font.Gotham
+            muteLabel.TextSize = isMobile and 9 or 10
+            muteLabel.TextXAlignment = Enum.TextXAlignment.Left
+            muteLabel.ZIndex = 42
+            muteLabel.Parent = formSection
+ 
+            local muteInput = Instance.new("TextBox")
+            muteInput.Size = UDim2.new(0.5, -12, 0, isMobile and 26 or 30)
+            muteInput.Position = UDim2.new(0, 8, 0, isMobile and 146 or 154)
+            muteInput.BackgroundColor3 = Color3.fromRGB(18, 18, 22)
+            muteInput.PlaceholderText = "10"
+            muteInput.PlaceholderColor3 = Color3.fromRGB(100, 100, 115)
+            muteInput.Text = ""
+            muteInput.TextColor3 = Color3.fromRGB(255, 255, 255)
+            muteInput.Font = Enum.Font.Gotham
+            muteInput.TextSize = isMobile and 10 or 12
+            muteInput.ClearTextOnFocus = false
+            muteInput.ZIndex = 42
+            muteInput.Parent = formSection
+            local muteInputCorner = Instance.new("UICorner", muteInput)
+            muteInputCorner.CornerRadius = UDim.new(0, 6)
+ 
+            local muteBtn = Instance.new("TextButton")
+            muteBtn.Size = UDim2.new(0.5, -12, 0, isMobile and 26 or 30)
+            muteBtn.Position = UDim2.new(0.5, 4, 0, isMobile and 146 or 154)
+            muteBtn.BackgroundColor3 = Color3.fromRGB(255, 193, 7)
+            muteBtn.Text = "🔇 Mutear"
+            muteBtn.TextColor3 = Color3.fromRGB(0, 0, 0)
+            muteBtn.Font = Enum.Font.GothamBold
+            muteBtn.TextSize = isMobile and 10 or 12
+            muteBtn.BorderSizePixel = 0
+            muteBtn.AutoButtonColor = false
+            muteBtn.ZIndex = 42
+            muteBtn.Parent = formSection
+            local muteBtnCorner = Instance.new("UICorner", muteBtn)
+            muteBtnCorner.CornerRadius = UDim.new(0, 6)
+            AgregarEfectoHover(muteBtn, Color3.fromRGB(255, 193, 7), Color3.fromRGB(255, 213, 79))
+ 
+            local blockImgBtn = Instance.new("TextButton")
+            blockImgBtn.Size = UDim2.new(0.5, -12, 0, isMobile and 28 or 32)
+            blockImgBtn.Position = UDim2.new(0, 8, 0, isMobile and 182 or 194)
+            blockImgBtn.BackgroundColor3 = Color3.fromRGB(255, 130, 60)
+            blockImgBtn.Text = "🚫 Sin imágenes"
+            blockImgBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            blockImgBtn.Font = Enum.Font.GothamBold
+            blockImgBtn.TextSize = isMobile and 10 or 12
+            blockImgBtn.BorderSizePixel = 0
+            blockImgBtn.AutoButtonColor = false
+            blockImgBtn.ZIndex = 42
+            blockImgBtn.Parent = formSection
+            local blockImgBtnCorner = Instance.new("UICorner", blockImgBtn)
+            blockImgBtnCorner.CornerRadius = UDim.new(0, 6)
+            AgregarEfectoHover(blockImgBtn, Color3.fromRGB(255, 130, 60), Color3.fromRGB(255, 150, 90))
+ 
+            local banBtn = Instance.new("TextButton")
+            banBtn.Size = UDim2.new(0.5, -12, 0, isMobile and 28 or 32)
+            banBtn.Position = UDim2.new(0.5, 4, 0, isMobile and 182 or 194)
+            banBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
+            banBtn.Text = "⛔ Banear"
+            banBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            banBtn.Font = Enum.Font.GothamBold
+            banBtn.TextSize = isMobile and 10 or 12
+            banBtn.BorderSizePixel = 0
+            banBtn.AutoButtonColor = false
+            banBtn.ZIndex = 42
+            banBtn.Parent = formSection
+            local banBtnCorner = Instance.new("UICorner", banBtn)
+            banBtnCorner.CornerRadius = UDim.new(0, 6)
+            AgregarEfectoHover(banBtn, Color3.fromRGB(220, 53, 69), Color3.fromRGB(255, 70, 85))
+ 
+            local unsanctionBtn = Instance.new("TextButton")
+            unsanctionBtn.Size = UDim2.new(1, -16, 0, isMobile and 26 or 30)
+            unsanctionBtn.Position = UDim2.new(0, 8, 0, isMobile and 216 or 232)
+            unsanctionBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
+            unsanctionBtn.Text = "✅ Quitar todas las sanciones"
+            unsanctionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            unsanctionBtn.Font = Enum.Font.GothamBold
+            unsanctionBtn.TextSize = isMobile and 10 or 12
+            unsanctionBtn.BorderSizePixel = 0
+            unsanctionBtn.AutoButtonColor = false
+            unsanctionBtn.ZIndex = 42
+            unsanctionBtn.Parent = formSection
+            local unsanctionBtnCorner = Instance.new("UICorner", unsanctionBtn)
+            unsanctionBtnCorner.CornerRadius = UDim.new(0, 6)
+            AgregarEfectoHover(unsanctionBtn, Color3.fromRGB(67, 181, 129), Color3.fromRGB(87, 201, 149))
+ 
+            -- ===== Lista de sancionados =====
+            local listTitle = Instance.new("TextLabel")
+            listTitle.Size = UDim2.new(1, 0, 0, 20)
+            listTitle.BackgroundTransparency = 1
+            listTitle.Text = "📋 Usuarios sancionados"
+            listTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+            listTitle.Font = Enum.Font.GothamBold
+            listTitle.TextSize = isMobile and 12 or 14
+            listTitle.TextXAlignment = Enum.TextXAlignment.Left
+            listTitle.LayoutOrder = 3
+            listTitle.ZIndex = 41
+            listTitle.Parent = adminScroll
+ 
+            local sancionesListFrame = Instance.new("Frame")
+            sancionesListFrame.Name = "SancionesListFrame"
+            sancionesListFrame.Size = UDim2.new(1, 0, 0, 0)
+            sancionesListFrame.AutomaticSize = Enum.AutomaticSize.Y
+            sancionesListFrame.BackgroundTransparency = 1
+            sancionesListFrame.LayoutOrder = 4
+            sancionesListFrame.ZIndex = 41
+            sancionesListFrame.Parent = adminScroll
+ 
+            local sancionesListLayout = Instance.new("UIListLayout", sancionesListFrame)
+            sancionesListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            sancionesListLayout.Padding = UDim.new(0, 6)
+ 
+            local function RenderSanciones()
+                for _, child in ipairs(sancionesListFrame:GetChildren()) do
+                    if not child:IsA("UIListLayout") then
+                        child:Destroy()
                     end
                 end
-                
-                print("✅ Chat, respuestas y comandos limpiados correctamente")
-                
-                deleteBtn.Text = "✅"
-                deleteBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
-                task.wait(1.5)
-                deleteBtn.Text = "🗑️"
-                deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
-            else
-                warn("❌ Error al limpiar Firebase")
-                if not successChat then
-                    warn("  - Error en Chat")
+ 
+                local count = 0
+                for username, data in pairs(sancionesData) do
+                    count = count + 1
+ 
+                    local card = Instance.new("Frame")
+                    card.Name = "SancionCard_" .. username
+                    card.Size = UDim2.new(1, 0, 0, isMobile and 78 or 84)
+                    card.BackgroundColor3 = Color3.fromRGB(35, 35, 42)
+                    card.BorderSizePixel = 0
+                    card.ZIndex = 41
+                    card.Parent = sancionesListFrame
+                    local cardCorner = Instance.new("UICorner", card)
+                    cardCorner.CornerRadius = UDim.new(0, 8)
+                    local cardStroke = Instance.new("UIStroke", card)
+                    cardStroke.Color = Color3.fromRGB(220, 53, 69)
+                    cardStroke.Thickness = 1
+                    cardStroke.Transparency = 0.5
+ 
+                    local nameLbl = Instance.new("TextLabel")
+                    nameLbl.Size = UDim2.new(1, -70, 0, 16)
+                    nameLbl.Position = UDim2.new(0, 8, 0, 6)
+                    nameLbl.BackgroundTransparency = 1
+                    nameLbl.Text = "👤 " .. username
+                    nameLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    nameLbl.Font = Enum.Font.GothamBold
+                    nameLbl.TextSize = isMobile and 10 or 12
+                    nameLbl.TextXAlignment = Enum.TextXAlignment.Left
+                    nameLbl.ZIndex = 42
+                    nameLbl.Parent = card
+ 
+                    local badges = {}
+                    if data.banned then table.insert(badges, "⛔ Baneado") end
+                    if data.muteUntil and data.muteUntil > os.time() then
+                        local mins = math.ceil((data.muteUntil - os.time()) / 60)
+                        table.insert(badges, "🔇 Mute " .. mins .. "m")
+                    end
+                    if data.blockImages then table.insert(badges, "🚫 Sin imágenes") end
+ 
+                    local badgeLbl = Instance.new("TextLabel")
+                    badgeLbl.Size = UDim2.new(1, -16, 0, 14)
+                    badgeLbl.Position = UDim2.new(0, 8, 0, 24)
+                    badgeLbl.BackgroundTransparency = 1
+                    badgeLbl.Text = #badges > 0 and table.concat(badges, "  •  ") or "Sin sanciones activas"
+                    badgeLbl.TextColor3 = Color3.fromRGB(255, 193, 7)
+                    badgeLbl.Font = Enum.Font.GothamMedium
+                    badgeLbl.TextSize = isMobile and 9 or 10
+                    badgeLbl.TextXAlignment = Enum.TextXAlignment.Left
+                    badgeLbl.TextWrapped = true
+                    badgeLbl.ZIndex = 42
+                    badgeLbl.Parent = card
+ 
+                    local reasonLbl = Instance.new("TextLabel")
+                    reasonLbl.Size = UDim2.new(1, -16, 0, 14)
+                    reasonLbl.Position = UDim2.new(0, 8, 0, 40)
+                    reasonLbl.BackgroundTransparency = 1
+                    reasonLbl.Text = "📝 " .. ((data.reason and data.reason ~= "") and data.reason or "Sin motivo especificado")
+                    reasonLbl.TextColor3 = Color3.fromRGB(180, 180, 200)
+                    reasonLbl.Font = Enum.Font.Gotham
+                    reasonLbl.TextSize = isMobile and 8 or 10
+                    reasonLbl.TextXAlignment = Enum.TextXAlignment.Left
+                    reasonLbl.TextTruncate = Enum.TextTruncate.AtEnd
+                    reasonLbl.ZIndex = 42
+                    reasonLbl.Parent = card
+ 
+                    local modLbl = Instance.new("TextLabel")
+                    modLbl.Size = UDim2.new(1, -16, 0, 12)
+                    modLbl.Position = UDim2.new(0, 8, 0, 56)
+                    modLbl.BackgroundTransparency = 1
+                    modLbl.Text = "por " .. (data.moderator or "?") .. " • " .. os.date("%d/%m %H:%M", data.timestamp or 0)
+                    modLbl.TextColor3 = Color3.fromRGB(120, 120, 135)
+                    modLbl.Font = Enum.Font.Gotham
+                    modLbl.TextSize = isMobile and 7 or 9
+                    modLbl.TextXAlignment = Enum.TextXAlignment.Left
+                    modLbl.ZIndex = 42
+                    modLbl.Parent = card
+ 
+                    local removeBtn = Instance.new("TextButton")
+                    removeBtn.Size = UDim2.new(0, 60, 0, isMobile and 22 or 24)
+                    removeBtn.Position = UDim2.new(1, -66, 0, 6)
+                    removeBtn.BackgroundColor3 = Color3.fromRGB(67, 181, 129)
+                    removeBtn.Text = "Quitar"
+                    removeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+                    removeBtn.Font = Enum.Font.GothamBold
+                    removeBtn.TextSize = isMobile and 8 or 10
+                    removeBtn.BorderSizePixel = 0
+                    removeBtn.AutoButtonColor = false
+                    removeBtn.ZIndex = 42
+                    removeBtn.Parent = card
+                    local removeBtnCorner = Instance.new("UICorner", removeBtn)
+                    removeBtnCorner.CornerRadius = UDim.new(0, 6)
+ 
+                    removeBtn.MouseButton1Click:Connect(function()
+                        EliminarSancion(username)
+                        task.wait(0.3)
+                        RenderSanciones()
+                    end)
                 end
-                if not successRespuestas then
-                    warn("  - Error en Respuestas")
+ 
+                if count == 0 then
+                    local emptyLbl = Instance.new("TextLabel")
+                    emptyLbl.Size = UDim2.new(1, 0, 0, 40)
+                    emptyLbl.BackgroundTransparency = 1
+                    emptyLbl.Text = "No hay usuarios sancionados."
+                    emptyLbl.TextColor3 = Color3.fromRGB(150, 150, 160)
+                    emptyLbl.Font = Enum.Font.Gotham
+                    emptyLbl.TextSize = isMobile and 10 or 12
+                    emptyLbl.ZIndex = 41
+                    emptyLbl.Parent = sancionesListFrame
                 end
-
-                
-                deleteBtn.Text = "❌"
-                deleteBtn.BackgroundColor3 = Color3.fromRGB(255, 50, 50)
-                task.wait(1.5)
-                deleteBtn.Text = "🗑️"
-                deleteBtn.BackgroundColor3 = Color3.fromRGB(220, 53, 69)
             end
-        end)
-    end)
-end
+ 
+            RenderSanciones()
+ 
+            muteBtn.MouseButton1Click:Connect(function()
+                local username = userInput.Text
+                local mins = tonumber(muteInput.Text) or 10
+                local reason = reasonInput.Text
+                if username:gsub("%s", "") == "" then
+                    MostrarFeedbackBtn(muteBtn, "❌ Falta usuario", Color3.fromRGB(220, 53, 69))
+                    return
+                end
+                AplicarSancion(username, "mute", mins, reason)
+                MostrarFeedbackBtn(muteBtn, "✅ Muteado", Color3.fromRGB(67, 181, 129))
+                task.wait(0.3)
+                RenderSanciones()
+            end)
+ 
+            blockImgBtn.MouseButton1Click:Connect(function()
+                local username = userInput.Text
+                local reason = reasonInput.Text
+                if username:gsub("%s", "") == "" then
+                    MostrarFeedbackBtn(blockImgBtn, "❌ Falta usuario", Color3.fromRGB(220, 53, 69))
+                    return
+                end
+                AplicarSancion(username, "blockimages", nil, reason)
+                MostrarFeedbackBtn(blockImgBtn, "✅ Aplicado", Color3.fromRGB(67, 181, 129))
+                task.wait(0.3)
+                RenderSanciones()
+            end)
+ 
+            banBtn.MouseButton1Click:Connect(function()
+                local username = userInput.Text
+                local reason = reasonInput.Text
+                if username:gsub("%s", "") == "" then
+                    MostrarFeedbackBtn(banBtn, "❌ Falta usuario", Color3.fromRGB(220, 53, 69))
+                    return
+                end
+                AplicarSancion(username, "ban", nil, reason)
+                MostrarFeedbackBtn(banBtn, "✅ Baneado", Color3.fromRGB(67, 181, 129))
+                task.wait(0.3)
+                RenderSanciones()
+            end)
+ 
+            unsanctionBtn.MouseButton1Click:Connect(function()
+                local username = userInput.Text:gsub("^%s*(.-)%s*$", "%1")
+                if username == "" then
+                    MostrarFeedbackBtn(unsanctionBtn, "❌ Falta usuario", Color3.fromRGB(220, 53, 69))
+                    return
+                end
+                EliminarSancion(username)
+                MostrarFeedbackBtn(unsanctionBtn, "✅ Limpio", Color3.fromRGB(67, 181, 129))
+                task.wait(0.3)
+                RenderSanciones()
+            end)
+ 
+            TweenService:Create(adminPanelWindow, TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Size = UDim2.new(0, winW, 0, winH)
+            }):Play()
+        end
+ 
+        adminBtn.MouseButton1Click:Connect(AbrirPanelAdmin)
+    end
+ 
 
  local discordStartPos = isMobile and 115 or 220
     
@@ -3488,6 +4093,22 @@ titleBar.InputBegan:Connect(function(input)
         
         local texto = textBox.Text:gsub("^%s*(.-)%s*$", "%1")
         
+  if not VerificarSancionPropia() then return end
+ 
+        local sancionPropia = sancionesData[player.Name]
+        if sancionPropia and sancionPropia.blockImages and DetectarURLImagen(texto) then
+            textBox.PlaceholderText = "🚫 Tenés bloqueado el envío de imágenes"
+            textBox.PlaceholderColor3 = Color3.fromRGB(255, 80, 80)
+            task.spawn(function()
+                task.wait(2)
+                if textBox and textBox.Parent then
+                    textBox.PlaceholderText = "💬 Escribe mensaje o pega URL de imagen..."
+                    textBox.PlaceholderColor3 = Color3.fromRGB(120, 120, 130)
+                end
+            end)
+            return
+        end
+
         if texto ~= "" and #texto <= 500 then
             enviandoMensaje = true
             sendButton.Text = "⏳"
